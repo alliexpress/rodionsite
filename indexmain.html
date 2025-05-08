@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aqua Transistor Studio</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    /* CSS переменные для светлой и тёмной темы */
+    :root {
+      --primary: #1e40af;
+      --secondary: #10b981;
+      --background-light: #f3f4f6;
+      --background-dark: #1f2937;
+      --text-light: #111827;
+      --text-dark: #f9fafb;
+    }
+
+    [data-theme="dark"] {
+      --background: var(--background-dark);
+      --text: var(--text-dark);
+    }
+
+    [data-theme="light"] {
+      --background: var(--background-light);
+      --text: var(--text-light);
+    }
+
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      background: var(--background);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .tab {
+      cursor: pointer;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .tab.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .tooltip, .context-menu {
+      position: absolute;
+      z-index: 1000;
+      display: none;
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="max-w-7xl mx-auto flex flex-col gap-8">
+    <button id="themeToggle" class="theme-toggle text-white py-2 px-4 rounded" aria-label="Переключить тему">Тёмная/Светлая тема</button>
+    <h1 class="text-4xl font-bold text-center mb-8">Aqua Transistor Studio</h1>
+    <div class="toolbar" id="toolbar"></div>
+    <div class="flex flex-col gap-8">
+      <div id="controlPanel" class="control-panel"></div>
+      <div id="canvasWrapper" class="canvas-container">
+        <canvas id="canvas"></canvas>
+      </div>
+      <div id="output" class="mt-6 w-full max-w-3xl"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <script src="scripts/ui.js"></script>
+  <script src="scripts/simulation.js"></script>
+  <script src="scripts/events.js"></script>
+</body>
+</html>
