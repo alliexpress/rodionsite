@@ -1,0 +1,20 @@
+[
+    {
+        "name": "Graphene FET",
+        "parameters": {
+            "mobility": 10000,
+            "gate_voltage": 1.0,
+            "temperature": 300,
+            "doping": 1e12
+        }
+    },
+    {
+        "name": "MoS2 FET",
+        "parameters": {
+            "mobility": 200,
+            "gate_voltage": 1.5,
+            "temperature": 300,
+            "doping": 5e12
+        }
+    }
+]

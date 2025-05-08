@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aqua Transistor Studio</title>
+    <link rel="stylesheet" href="styles.css">
+    <script defer src="app.js"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+</head>
+<body>
+    <header>
+        <h1>Aqua Transistor Studio</h1>
+        <button id="theme-toggle">Сменить тему</button>
+    </header>
+    <main>
+        <aside id="toolbar">
+            <h2>Компоненты</h2>
+            <div id="components">
+                <button draggable="true" data-type="graphene">Графен</button>
+                <button draggable="true" data-type="mos2">MoS₂</button>
+                <button draggable="true" data-type="source">Источник</button>
+                <button draggable="true" data-type="drain">Слив</button>
+                <button draggable="true" data-type="gate">Затвор</button>
+            </div>
+        </aside>
+        <section id="canvas-container">
+            <canvas id="design-canvas"></canvas>
+        </section>
+        <section id="control-panel">
+            <h2>Панель управления</h2>
+            <div id="tabs">
+                <button data-tab="constructor">Конструктор</button>
+                <button data-tab="simulation">Симуляция</button>
+                <button data-tab="export">Экспорт</button>
+                <button data-tab="examples">Примеры</button>
+            </div>
+            <div id="tab-content">
+                <!-- Содержимое вкладок будет динамически изменяться -->
+            </div>
+        </section>
+    </main>
+    <footer>
+        <p>© 2025 Aqua Transistor Studio</p>
+    </footer>
+</body>
+</html>
