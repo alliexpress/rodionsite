@@ -1,0 +1,243 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+</script>
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aqua Transistor Studio</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    /* Глобальные стили */
+    :root {
+      --primary: #1e40af;
+      --primary-light: #3b82f6;
+      --secondary: #10b981;
+      --background-light: #f3f4f6;
+      --background-dark: #1f2937;
+      --text-light: #111827;
+      --text-dark: #f9fafb;
+      --card-bg-light: rgba(255, 255, 255, 0.9);
+      --card-bg-dark: rgba(31, 41, 55, 0.9);
+      --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      --border: #d1d5db;
+    }
+
+    [data-theme="dark"] {
+      --background: var(--background-dark);
+      --text: var(--text-dark);
+      --card-bg: var(--card-bg-dark);
+    }
+
+    [data-theme="light"] {
+      --background: var(--background-light);
+      --text: var(--text-light);
+      --card-bg: var(--card-bg-light);
+    }
+
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      background: var(--background);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    /* Компоненты */
+    .canvas-container {
+      border: 2px solid var(--border);
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 800px;
+      height: auto;
+      aspect-ratio: 8 / 5;
+      position: relative;
+    }
+
+    .control-panel {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 350px;
+      box-shadow: var(--shadow);
+      margin-bottom: 1rem;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 2px solid var(--primary);
+      margin-bottom: 1rem;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.75rem;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      font-weight: 600;
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .tab.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .tab:hover {
+      background: var(--primary-light);
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .button-group {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+    }
+
+    button {
+      background: var(--primary);
+      padding: 0.75rem;
+      font-size: 1rem;
+      width: 100%;
+      border-radius: 8px;
+      color: white;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .theme-toggle {
+      margin: 1rem 0;
+      background: var(--secondary);
+    }
+
+    .example-btn {
+      background: var(--secondary);
+    }
+
+    input, select {
+      font-size: 1rem;
+      padding: 0.6rem;
+      width: 100%;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      transition: border-color 0.3s;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="max-w-7xl mx-auto flex flex-col gap-8">
+    <button onclick="toggleTheme()" class="theme-toggle text-white py-2 px-4 rounded" aria-label="Переключить тему">Тёмная/Светлая тема</button>
+    <h1 class="text-4xl font-bold text-center mb-8">Aqua Transistor Studio</h1>
+    <div class="toolbar" id="toolbar">
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="Graphene" style="background: #999;">Layer</div>
+      <div class="draggable-item" draggable="true" data-type="Source" style="background: #bdc3c7;">S</div>
+      <div class="draggable-item" draggable="true" data-type="Drain" style="background: #bdc3c7;">D</div>
+      <div class="draggable-item" draggable="true" data-type="Gate" style="background: #f1c40f;">G</div>
+    </div>
+    <div class="flex flex-col gap-8">
+      <div class="control-panel">
+        <div class="tabs" role="tablist">
+          <div class="tab active" onclick="switchTab('constructor')" role="tab" aria-selected="true" aria-controls="constructor">Конструктор</div>
+          <div class="tab" onclick="switchTab('simulation')" role="tab" aria-selected="false" aria-controls="simulation">Симуляция</div>
+          <div class="tab" onclick="switchTab('export')" role="tab" aria-selected="false" aria-controls="export">Экспорт</div>
+          <div class="tab" onclick="switchTab('examples')" role="tab" aria-selected="false" aria-controls="examples">Примеры</div>
+        </div>
+        <div id="constructor" class="tab-content active" role="tabpanel">
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="component">Добавить компонент:</label>
+            <select id="component" class="mb-2">
+              <option value="2D-Layer">Слой 2D-материала</option>
+              <option value="Source">Исток</option>
+              <option value="Drain">Сток</option>
+              <option value="Gate">Затвор</option>
+            </select>
+            <button onclick="addComponent()">Добавить компонент</button>
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="material">Материал слоя:</label>
+            <select id="material">
+              <option value="Graphene">Графен</option>
+              <option value="MoS2">MoS₂</option>
+              <option value="BN">h-BN (диэлектрик)</option>
+              <option value="WSe2">WSe₂</option>
+              <!-- Custom Materials -->
+              <option value="BlackPhosphorus">Black Phosphorus</option>
+              <option value="ReS2">ReS₂</option>
+              <option value="InSe">InSe</option>
+            </select>
+            <label class="block text-sm font-medium mb-2 mt-2" for="thickness">Толщина слоя (нм):</label>
+            <input id="thickness" type="number" step="0.1" value="0.7" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
