@@ -1,0 +1,1437 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aqua Transistor Studio</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1e40af;
+      --primary-light: #3b82f6;
+      --secondary: #10b981;
+      --background-light: #f3f4f6;
+      --background-dark: #1f2937;
+      --text-light: #111827;
+      --text-dark: #f9fafb;
+      --card-bg-light: rgba(255, 255, 255, 0.9);
+      --card-bg-dark: rgba(31, 41, 55, 0.9);
+      --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      --border: #d1d5db;
+    }
+
+    [data-theme="dark"] {
+      --background: var(--background-dark);
+      --text: var(--text-dark);
+      --card-bg: var(--card-bg-dark);
+    }
+
+    [data-theme="light"] {
+      --background: var(--background-light);
+      --text: var(--text-light);
+      --card-bg: var(--card-bg-light);
+    }
+
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      background: var(--background);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .canvas-container {
+      border: 2px solid var(--border);
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      width: 100%;
+      max-width: 800px;
+      height: auto;
+      aspect-ratio: 8 / 5;
+      position: relative;
+    }
+
+    .control-panel {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 350px;
+      box-shadow: var(--shadow);
+      margin-bottom: 1rem;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 2px solid var(--primary);
+      margin-bottom: 1rem;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.75rem;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.1);
+      cursor: pointer;
+      border-radius: 8px 8px 0 0;
+      font-weight: 600;
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .tab.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .tab:hover {
+      background: var(--primary-light);
+      color: white;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .button-group {
+      margin-bottom: 1.5rem;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+    }
+
+    button {
+      background: var(--primary);
+      padding: 0.75rem;
+      font-size: 1rem;
+      width: 100%;
+      border-radius: 8px;
+      color: white;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .theme-toggle {
+      margin: 1rem 0;
+      background: var(--secondary);
+    }
+
+    .example-btn {
+      background: var(--secondary);
+    }
+
+    input, select {
+      font-size: 1rem;
+      padding: 0.6rem;
+      width: 100%;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.3);
+      color: var(--text);
+      border: 1px solid var(--border);
+      transition: border-color 0.3s;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--primary);
+    }
+
+    .accordion-header {
+      background: var(--primary);
+      padding: 0.75rem;
+      border-radius: 8px;
+      cursor: pointer;
+      color: white;
+      margin-bottom: 0.5rem;
+    }
+
+    .accordion-content {
+      display: none;
+      padding: 1rem;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+    }
+
+    .accordion-content.active {
+      display: block;
+    }
+
+    .comparison-panel {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 1.5rem;
+      max-width: 350px;
+      margin-top: 1rem;
+      display: none;
+      box-shadow: var(--shadow);
+    }
+
+    .tooltip {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.9);
+      color: var(--primary);
+      padding: 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      z-index: 1000;
+      box-shadow: var(--shadow);
+      pointer-events: none;
+    }
+
+    .context-menu {
+      display: none;
+      position: absolute;
+      background: var(--card-bg);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 0.5rem;
+      z-index: 1000;
+      min-width: 150px;
+    }
+
+    .context-menu-item {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      color: var(--text);
+    }
+
+    .context-menu-item:hover {
+      background: var(--primary-light);
+      color: var(--text-dark);
+    }
+
+    .toolbar {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .draggable-item {
+      width: 50px;
+      height: 50px;
+      background: #999;
+      border: 2px solid var(--border);
+      border-radius: 8px;
+      cursor: move;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: white;
+      transition: transform 0.2s;
+    }
+
+    .draggable-item:hover {
+      transform: scale(1.1);
+    }
+
+    .grid-toggle {
+      margin-top: 1rem;
+      background: var(--secondary);
+    }
+
+    .loading-bar {
+      display: none;
+      width: 0%;
+      height: 4px;
+      background: var(--secondary);
+      border-radius: 2px;
+      animation: loading 2s ease-in-out forwards;
+    }
+
+    @keyframes loading {
+      to { width: 100%; }
+    }
+
+    .selected {
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0% { box-shadow: 0 0 5px var(--primary); }
+      50% { box-shadow: 0 0 15px var(--primary-light); }
+      100% { box-shadow: 0 0 5px var(--primary); }
+    }
+
+    .grid {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .grid-line {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    @media (max-width: 768px) {
+      .control-panel, .comparison-panel { max-width: 100%; }
+      .canvas-container { max-width: 100%; }
+      button, input, select { font-size: 0.9rem; padding: 0.6rem; }
+      h1 { font-size: 1.5rem; }
+      h2 { font-size: 1.25rem; }
+      .tabs { flex-wrap: wrap; }
+      .tab { flex: 1 1 50%; }
+      .toolbar { flex-direction: column; }
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="max-w-7xl mx-auto flex flex-col gap-8">
+    <button onclick="toggleTheme()" class="theme-toggle text-white py-2 px-4 rounded" aria-label="Переключить тему">Тёмная/Светлая тема</button>
+    <h1 class="text-4xl font-bold text-center mb-8">Aqua Transistor Studio</h1>
+    <div class="toolbar" id="toolbar">
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="Graphene" style="background: #999;">Layer (Gr)</div>
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="MoS2" style="background: #2ecc71;">Layer (MoS₂)</div>
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="BN" style="background: #00d4ff;">Layer (BN)</div>
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="WSe2" style="background: #9b59b6;">Layer (WSe₂)</div>
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="BlackPhosphorus" style="background: #34495e;">Layer (BP)</div>
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="Silicene" style="background: #7f8c8d;">Layer (Si)</div>
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="Stanene" style="background: #95a5a6;">Layer (Sn)</div>
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="ReS2" style="background: #e74c3c;">Layer (ReS₂)</div>
+      <div class="draggable-item" draggable="true" data-type="Source" style="background: #bdc3c7;">S</div>
+      <div class="draggable-item" draggable="true" data-type="Drain" style="background: #bdc3c7;">D</div>
+      <div class="draggable-item" draggable="true" data-type="Gate" style="background: #f1c40f;">G</div>
+      <div class="draggable-item" draggable="true" data-type="Capacitor" style="background: #3498db;">C</div>
+      <div class="draggable-item" draggable="true" data-type="Insulator" style="background: #1abc9c;">I</div>
+      <div class="draggable-item" draggable="true" data-type="Contact" style="background: #e67e22;">Ct</div>
+      <div class="draggable-item" draggable="true" data-type="Channel" style="background: #8e44ad;">Ch</div>
+    </div>
+    <div class="flex flex-col gap-8">
+      <div class="control-panel">
+        <div class="tabs" role="tablist">
+          <div class="tab active" onclick="switchTab('constructor')" role="tab" aria-selected="true" aria-controls="constructor">Конструктор</div>
+          <div class="tab" onclick="switchTab('simulation')" role="tab" aria-selected="false" aria-controls="simulation">Симуляция</div>
+          <div class="tab" onclick="switchTab('export')" role="tab" aria-selected="false" aria-controls="export">Экспорт</div>
+          <div class="tab" onclick="switchTab('examples')" role="tab" aria-selected="false" aria-controls="examples">Примеры</div>
+        </div>
+        <div id="constructor" class="tab-content active" role="tabpanel">
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="component">Добавить компонент:</label>
+            <select id="component" class="mb-2">
+              <option value="2D-Layer">Слой 2D-материала</option>
+              <option value="Source">Исток</option>
+              <option value="Drain">Сток</option>
+              <option value="Gate">Затвор</option>
+              <option value="Capacitor">Конденсатор</option>
+              <option value="Insulator">Изолятор</option>
+              <option value="Contact">Контакт</option>
+              <option value="Channel">Канал</option>
+            </select>
+            <button onclick="addComponent()">Добавить компонент</button>
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="material">Материал слоя:</label>
+            <select id="material">
+              <option value="Graphene">Графен</option>
+              <option value="MoS2">MoS₂</option>
+              <option value="BN">h-BN (диэлектрик)</option>
+              <option value="WSe2">WSe₂</option>
+              <option value="BlackPhosphorus">Чёрный фосфор</option>
+              <option value="Silicene">Силицен</option>
+              <option value="Stanene">Станен</option>
+              <option value="ReS2">ReS₂</option>
+            </select>
+            <label class="block text-sm font-medium mb-2 mt-2" for="thickness">Толщина слоя (нм):</label>
+            <input id="thickness" type="number" step="0.1" value="0.7" />
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="substrate">Подложка:</label>
+            <select id="substrate">
+              <option value="SiO2">SiO₂ (ε=3.9)</option>
+              <option value="Al2O3">Al₂O₃ (ε=9. ANSWER:0)</option>
+            </select>
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="mobility">Подвижность (см²/В·с):</label>
+            <input id="mobility" type="number" value="1000" oninput="previewParameters()" />
+            <label class="block text-sm font-medium mb-2 mt-2" for="gateVoltage">Напряжение затвора (В):</label>
+            <input id="gateVoltage" type="number" step="0.1" value="1.5" oninput="previewParameters()" />
+            <label class="block text-sm font-medium mb-2 mt-2" for="doping">Легирование (см⁻²):</label>
+            <input id="doping" type="number" value="1e12" oninput="previewParameters()" />
+            <label class="block text-sm font-medium mb-2 mt-2" for="temperature">Температура (К):</label>
+            <input id="temperature" type="number" value="300" oninput="previewParameters()" />
+            <label class="block text-sm font-medium mb-2 mt-2" for="defects">Дефекты (см⁻²):</label>
+            <input id="defects" type="number" value="1e10" oninput="previewParameters()" />
+          </div>
+          <button id="toggleGrid" class="grid-toggle text-white py-2 px-4 rounded mt-4" onclick="toggleGrid()">Включить сетку</button>
+        </div>
+        <div id="simulation" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <button onclick="runSimulation()">Запустить симуляцию</button>
+            <div class="loading-bar" id="loadingBar"></div>
+            <button onclick="optimizeParameters()" class="mt-2">Оптимизировать</button>
+            <div id="preview" class="text-sm mt-4"></div>
+          </div>
+        </div>
+        <div id="export" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <button onclick="saveSimulation()">Сохранить симуляцию</button>
+            <button onclick="toggleComparison()" class="mt-2">Сравнить симуляции</button>
+          </div>
+          <div class="button-group">
+            <button onclick="exportPDF()">Экспорт PDF</button>
+            <button onclick="exportData()" class="mt-2">Экспорт CSV</button>
+            <button onclick="exportGDSII()" class="mt-2">Экспорт GDSII JSON</button>
+          </div>
+        </div>
+        <div id="examples" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="example">Выберите пример:</label>
+            <select id="example" class="mb-2">
+              <option value="graphene">Графеновый FET</option>
+              <option value="mos2">MoS₂ FET</option>
+              <option value="hybrid">Гибридный FET</option>
+              <option value="wse2">WSe₂ FET</option>
+              <option value="bn">BN-диэлектрический FET</option>
+              <option value="blackphosphorus">Чёрный фосфор FET</option>
+              <option value="silicene">Силицен FET</option>
+              <option value="stanene">Станен FET</option>
+              <option value="res2">ReS₂ FET</option>
+              <option value="hybrid_bn_mos2">Гибридный BN-MoS₂ FET</option>
+            </select>
+            <button onclick="loadExample()" class="example-btn">Загрузить пример</button>
+          </div>
+        </div>
+        <div id="error" class="text-red-500 mt-4 hidden" role="alert"></div>
+      </div>
+      <div class="w-full flex flex-col items-center">
+        <div class="canvas-container position-relative">
+          <canvas id="canvas"></canvas>
+          <div class="grid" id="grid" style="display: none;"></div>
+        </div>
+        <div id="output" class="mt-6 w-full max-w-3xl"></div>
+        <div id="comparison" class="comparison-panel">
+          <h2 class="text-2xl font-semibold mb-4">Сравнение симуляций</h2>
+          <button onclick="toggleComparison()" class="bg-red-500 text-white py-2 px-4 rounded mb-4">Закрыть</button>
+          <div id="comparisonOutput"></div>
+        </div>
+        <div class="mt-8 w-full max-w-3xl bg-opacity-20 p-6 rounded-lg shadow-xl" style="background: var(--card-bg);">
+          <h2 class="text-2xl font-semibold mb-4">Руководство и подсказки</h2>
+          <div class="accordion">
+            <div class="accordion-header" onclick="toggleAccordion(this)">Основы</div>
+            <div class="accordion-content">
+              <p class="text-sm mb-2">1. Перетаскивайте компоненты пальцем/мышкой, масштабируйте двумя пальцами/колесом.</p>
+              <p class="text-sm mb-2">2. Кликните на карту зарядов для плотности.</p>
+            </div>
+            <div class="accordion-header" onclick="toggleAccordion(this)">Экспорт</div>
+            <div class="accordion-content">
+              <p class="text-sm mb-2">3. Сохраняйте и сравнивайте симуляции.</p>
+              <p class="text-sm mb-2">4. Экспортируйте в PDF, CSV, GDSII.</p>
+            </div>
+            <div class="accordion-header" onclick="toggleAccordion(this)">Подсказка</div>
+            <div class="accordion-content">
+              <p class="text-sm font-semibold">Подсказка: Понизьте температуру и дефекты для квантовой проводимости!</p>
+            </div>
+          </div>
+        </div>
+        <div id="contextMenu" class="context-menu">
+          <div class="context-menu-item" onclick="removeComponent()">Удалить</div>
+          <div class="context-menu-item" onclick="duplicateComponent()">Дублировать</div>
+          <div class="context-menu-item" onclick="editProperties()">Изменить свойства</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Initialize global variables
+    let components = [], dragging = null, simulations = [], particles = [], 
+        touchState = { fingers: 0, startDist: 0, startAngle: 0, target: null }, 
+        selectedComponent = null, contextMenuTarget = null, isGridEnabled = false;
+    const canvas = document.getElementById("canvas"), 
+          ctx = canvas.getContext("2d"), 
+          grid = document.getElementById("grid"), 
+          contextMenu = document.getElementById("contextMenu");
+
+    // Load Pyodide
+    async function loadPyodideAndRun() {
+      try {
+        const pyodide = await loadPyodide();
+        await pyodide.loadPackage(["numpy", "matplotlib"]);
+        return pyodide;
+      } catch (err) {
+        console.error("Failed to load Pyodide:", err);
+        showError("Не удалось загрузить Pyodide. Попробуйте позже.");
+      }
+    }
+
+    let pyodidePromise = loadPyodideAndRun();
+
+    // Initialize IndexedDB
+    const dbPromise = indexedDB.open("TransistorSim", 1);
+    dbPromise.onupgradeneeded = e => e.target.result.createObjectStore("simulations", { keyPath: "id" });
+
+    // Utility to show errors
+    function showError(message) {
+      const errorDiv = document.getElementById("error");
+      errorDiv.textContent = message;
+      errorDiv.classList.remove("hidden");
+    }
+
+    // Resize canvas
+    function resizeCanvas() {
+      const width = Math.min(window.innerWidth - 40, 800);
+      canvas.width = width;
+      canvas.height = width * 5 / 8;
+      drawGrid();
+      drawCanvas();
+    }
+
+    window.addEventListener("resize", resizeCanvas);
+    window.addEventListener("orientationchange", resizeCanvas);
+    resizeCanvas();
+
+    // Toggle theme
+    function toggleTheme() {
+      console.log("Toggling theme");
+      try {
+        const body = document.body;
+        body.dataset.theme = body.dataset.theme === "light" ? "dark" : "light";
+      } catch (err) {
+        console.error("Error in toggleTheme:", err);
+        showError("Ошибка при переключении темы.");
+      }
+    }
+
+    // Switch tabs
+    function switchTab(tabId) {
+      console.log("Switching to tab:", tabId);
+      try {
+        document.querySelectorAll(".tab").forEach(tab => {
+          tab.classList.remove("active");
+          tab.setAttribute("aria-selected", "false");
+        });
+        document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
+        const selectedTab = document.querySelector(`[onclick="switchTab('${tabId}')"]`);
+        selectedTab.classList.add("active");
+        selectedTab.setAttribute("aria-selected", "true");
+        document.getElementById(tabId).classList.add("active");
+      } catch (err) {
+        console.error("Error in switchTab:", err);
+        showError("Ошибка при переключении вкладки.");
+      }
+    }
+
+    // Toggle accordion
+    function toggleAccordion(header) {
+      console.log("Toggling accordion");
+      try {
+        header.nextElementSibling.classList.toggle("active");
+      } catch (err) {
+        console.error("Error in toggleAccordion:", err);
+        showError("Ошибка при открытии аккордеона.");
+      }
+    }
+
+    // Add component
+    function addComponent() {
+      console.log("Adding component");
+      try {
+        const type = document.getElementById("component").value, 
+              material = document.getElementById("material").value, 
+              thickness = parseFloat(document.getElementById("thickness").value) || 0.7;
+        let width, height, color;
+        if (type === "2D-Layer") {
+          width = 300; height = 60;
+          color = material === "Graphene" ? "#999" : material === "MoS2" ? "#2ecc71" : 
+                  material === "BN" ? "#00d4ff" : material === "WSe2" ? "#9b59b6" :
+                  material === "BlackPhosphorus" ? "#34495e" : material === "Silicene" ? "#7f8c8d" : 
+                  material === "Stanene" ? "#95a5a6" : "#e74c3c";
+        } else if (type === "Source" || type === "Drain" || type === "Contact") {
+          width = height = 40; color = type === "Contact" ? "#e67e22" : "#bdc3c7";
+        } else if (type === "Gate" || type === "Channel") {
+          width = 300; height = type === "Channel" ? 20 : 30; color = type === "Channel" ? "#8e44ad" : "#f1c40f";
+        } else if (type === "Capacitor") {
+          width = 100; height = 50; color = "#3498db";
+        } else if (type === "Insulator") {
+          width = 200; height = 40; color = "#1abc9c";
+        }
+        components.push({ type, x: 50, y: 50, width, height, color, 
+                         material: type === "2D-Layer" ? material : null, 
+                         thickness: type === "2D-Layer" ? thickness : null, 
+                         scale: 1, rotation: 0 });
+        selectedComponent = components[components.length - 1];
+        drawCanvas();
+      } catch (err) {
+        console.error("Error in addComponent:", err);
+        showError("Ошибка при добавлении компонента.");
+      }
+    }
+
+    // Draw canvas
+    function drawCanvas() {
+      try {
+        const temperature = parseFloat(document.getElementById("temperature").value) || 300, 
+              tempColor = temperature < 200 ? "rgba(74, 144, 226, 0.3)" : 
+                         temperature > 400 ? "rgba(255, 99, 99, 0.3)" : "rgba(125, 193, 255, 0.3)";
+        ctx.fillStyle = tempColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        components.forEach(comp => {
+          ctx.save();
+          ctx.translate(comp.x + comp.width / 2, comp.y + comp.height / 2);
+          ctx.rotate(comp.rotation * Math.PI / 180);
+          ctx.scale(comp.scale, comp.scale);
+          ctx.fillStyle = comp.color;
+          ctx.shadowColor = comp === selectedComponent ? "#4a90e2" : "rgba(0, 0, 0, 0.2)";
+          ctx.shadowBlur = comp === selectedComponent ? 15 : 5;
+          ctx.fillRect(-comp.width / 2, -comp.height / 2, comp.width, comp.height);
+          ctx.strokeStyle = "#4a90e2";
+          ctx.strokeRect(-comp.width / 2, -comp.height / 2, comp.width, comp.height);
+          ctx.fillStyle = "#333";
+          ctx.font = "14px Inter";
+          ctx.fillText(`${comp.type}${comp.material ? ` (${comp.material})` : ""}`, -comp.width / 2 + 10, -comp.height / 2 + 20);
+          ctx.restore();
+        });
+        particles = particles.filter(p => p.life > 0);
+        particles.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 3, 0, 2 * Math.PI);
+          ctx.fillStyle = `rgba(${temperature > 400 ? "255, 99, 99" : "74, 144, 226"}, ${p.life})`;
+          ctx.fill();
+          p.x += p.vx;
+          p.y += p.vy;
+          p.life -= 0.015;
+        });
+        if (components.some(c => c.type === "Source") && components.some(c => c.type === "Drain")) {
+          const source = components.find(c => c.type === "Source"), 
+                drain = components.find(c => c.type === "Drain"), 
+                current = simulations.length > 0 ? simulations[simulations.length - 1].currents[50] : 1, 
+                particleRate = Math.min(0.05, current / 200);
+          if (Math.random() < particleRate) particles.push({ 
+            x: source.x + source.width / 2, 
+            y: source.y + source.height / 2, 
+            vx: (drain.x - source.x) / 100, 
+            vy: (drain.y - source.y) / 100, 
+            life: 1 
+          });
+        }
+        requestAnimationFrame(drawCanvas);
+      } catch (err) {
+        console.error("Error in drawCanvas:", err);
+        showError("Ошибка при отрисовке канваса.");
+      }
+    }
+
+    // Draw grid
+    function drawGrid() {
+      try {
+        if (!isGridEnabled) {
+          grid.innerHTML = '';
+          return;
+        }
+        grid.innerHTML = '';
+        grid.style.display = 'block';
+        const step = 10;
+        for (let x = 0; x <= canvas.width; x += step) {
+          const line = document.createElement('div');
+          line.className = 'grid-line';
+          line.style.left = `${x}px`;
+          line.style.top = '0';
+          line.style.width = '1px';
+          line.style.height = `${canvas.height}px`;
+          grid.appendChild(line);
+        }
+        for (let y = 0; y <= canvas.height; y += step) {
+          const line = document.createElement('div');
+          line.className = 'grid-line';
+          line.style.left = '0';
+          line.style.top = `${y}px`;
+          line.style.width = `${canvas.width}px`;
+          line.style.height = '1px';
+          grid.appendChild(line);
+        }
+      } catch (err) {
+        console.error("Error in drawGrid:", err);
+        showError("Ошибка при отрисовке сетки.");
+      }
+    }
+
+    // Toggle grid
+    function toggleGrid() {
+      console.log("Toggling grid");
+      try {
+        isGridEnabled = !isGridEnabled;
+        drawGrid();
+      } catch (err) {
+        console.error("Error in toggleGrid:", err);
+        showError("Ошибка при переключении сетки.");
+      }
+    }
+
+    // Get canvas position
+    function getCanvasPosition(event, touch = false) {
+      try {
+        const rect = canvas.getBoundingClientRect(), 
+              x = touch ? event.touches[0].clientX - rect.left : event.clientX - rect.left, 
+              y = touch ? event.touches[0].clientY - rect.top : event.clientY - rect.top;
+        return { x: isGridEnabled ? Math.round(x / 10) * 10 : x, y: isGridEnabled ? Math.round(y / 10) * 10 : y };
+      } catch (err) {
+        console.error("Error in getCanvasPosition:", err);
+        return { x: 0, y: 0 };
+      }
+    }
+
+    // Find component
+    function findComponent(x, y) {
+      try {
+        return components.find(comp => {
+          const dx = x - (comp.x + comp.width / 2), 
+                dy = y - (comp.y + comp.height / 2), 
+                cos = Math.cos(-comp.rotation * Math.PI / 180), 
+                sin = Math.sin(-comp.rotation * Math.PI / 180), 
+                rx = (dx * cos - dy * sin) / comp.scale, 
+                ry = (dx * sin + dy * cos) / comp.scale;
+          return Math.abs(rx) < comp.width / 2 && Math.abs(ry) < comp.height / 2;
+        });
+      } catch (err) {
+        console.error("Error in findComponent:", err);
+        return null;
+      }
+    }
+
+    // Canvas event listeners
+    canvas.addEventListener("mousedown", e => {
+      try {
+        if (e.button === 2) {
+          const { x, y } = getCanvasPosition(e);
+          contextMenuTarget = findComponent(x, y);
+          if (contextMenuTarget) {
+            contextMenu.style.left = `${e.clientX}px`;
+            contextMenu.style.top = `${e.clientY}px`;
+            contextMenu.style.display = "block";
+          }
+          return;
+        }
+        const { x, y } = getCanvasPosition(e);
+        dragging = findComponent(x, y);
+        selectedComponent = dragging;
+        drawCanvas();
+      } catch (err) {
+        console.error("Error in mousedown:", err);
+        showError("Ошибка при взаимодействии с канвасом.");
+      }
+    });
+
+    canvas.addEventListener("mousemove", e => {
+      try {
+        const { x, y } = getCanvasPosition(e), 
+              comp = findComponent(x, y), 
+              tooltip = document.querySelector(".tooltip") || document.createElement("div");
+        if (!tooltip.className) { 
+          tooltip.className = "tooltip"; 
+          document.body.appendChild(tooltip); 
+        }
+        if (comp) {
+          tooltip.style.left = `${e.clientX + 10}px`;
+          tooltip.style.top = `${e.clientY + 10}px`;
+          tooltip.textContent = `${comp.type}${comp.material ? ` (${comp.material}, ${comp.thickness} нм)` : ""}`;
+          tooltip.style.display = "block";
+        } else tooltip.style.display = "none";
+        if (dragging) {
+          dragging.x = x - dragging.width * dragging.scale / 2;
+          dragging.y = y - dragging.height * dragging.scale / 2;
+          drawCanvas();
+        }
+      } catch (err) {
+        console.error("Error in mousemove:", err);
+        showError("Ошибка при движении мыши.");
+      }
+    });
+
+    canvas.addEventListener("mouseup", () => {
+      try {
+        dragging = null;
+        contextMenu.style.display = "none";
+      } catch (err) {
+        console.error("Error in mouseup:", err);
+        showError("Ошибка при отпускании мыши.");
+      }
+    });
+
+    canvas.addEventListener("contextmenu", e => {
+      try {
+        e.preventDefault();
+      } catch (err) {
+        console.error("Error in contextmenu:", err);
+      }
+    });
+
+    canvas.addEventListener("wheel", e => {
+      try {
+        const { x, y } = getCanvasPosition(e), 
+              comp = findComponent(x, y);
+        if (comp) {
+          comp.scale = Math.max(0.5, Math.min(2, comp.scale + (e.deltaY > 0 ? -0.1 : 0.1)));
+          drawCanvas();
+        }
+      } catch (err) {
+        console.error("Error in wheel:", err);
+        showError("Ошибка при масштабировании.");
+      }
+    });
+
+    canvas.addEventListener("touchstart", e => {
+      try {
+        const touches = e.touches;
+        if (touches.length === 1) {
+          const { x, y } = getCanvasPosition(e, true);
+          dragging = findComponent(x, y);
+          selectedComponent = dragging;
+        } else if (touches.length === 2) {
+          const { x: x1, y: y1 } = getCanvasPosition({ touches: [touches[0]] }, true), 
+                { x: x2, y: y2 } = getCanvasPosition({ touches: [touches[1]] }, true);
+          touchState.fingers = 2;
+          touchState.startDist = Math.hypot(x2 - x1, y2 - y1);
+          touchState.startAngle = Math.atan2(y2 - y1, x2 - x1);
+          touchState.target = findComponent((x1 + x2) / 2, (y1 + y2) / 2);
+        }
+        drawCanvas();
+      } catch (err) {
+        console.error("Error in touchstart:", err);
+        showError("Ошибка при касании.");
+      }
+    });
+
+    canvas.addEventListener("touchmove", e => {
+      try {
+        const touches = e.touches, 
+              tooltip = document.querySelector(".tooltip") || document.createElement("div");
+        if (!tooltip.className) { 
+          tooltip.className = "tooltip"; 
+          document.body.appendChild(tooltip); 
+        }
+        if (touches.length === 1 && dragging) {
+          const { x, y } = getCanvasPosition(e, true);
+          dragging.x = x - dragging.width * dragging.scale / 2;
+          dragging.y = y - dragging.height * dragging.scale / 2;
+          tooltip.style.left = `${touches[0].clientX + 10}px`;
+          tooltip.style.top = `${touches[0].clientY + 10}px`;
+          tooltip.textContent = `${dragging.type}${dragging.material ? ` (${dragging.material}, ${dragging.thickness} нм)` : ""}`;
+          tooltip.style.display = "block";
+          drawCanvas();
+        } else if (touches.length === 2 && touchState.fingers === 2 && touchState.target) {
+          const { x: x1, y: y1 } = getCanvasPosition({ touches: [touches[0]] }, true), 
+                { x: x2, y: y2 } = getCanvasPosition({ touches: [touches[1]] }, true), 
+                dist = Math.hypot(x2 - x1, y2 - y1), 
+                angle = Math.atan2(y2 - y1, x2 - x1);
+          touchState.target.scale = Math.max(0.5, Math.min(2, touchState.target.scale * (dist / touchState.startDist)));
+          touchState.target.rotation += (angle - touchState.startAngle) * 180 / Math.PI;
+          touchState.startDist = dist;
+          touchState.startAngle = angle;
+          tooltip.style.display = "none";
+          drawCanvas();
+        }
+      } catch (err) {
+        console.error("Error in touchmove:", err);
+        showError("Ошибка при перемещении касания.");
+      }
+    });
+
+    canvas.addEventListener("touchend", e => {
+      try {
+        dragging = null;
+        touchState.fingers = 0;
+        touchState.target = null;
+        const tooltip = document.querySelector(".tooltip");
+        if (tooltip) tooltip.style.display = "none";
+        drawCanvas();
+      } catch (err) {
+        console.error("Error in touchend:", err);
+        showError("Ошибка при завершении касания.");
+      }
+    });
+
+    // Output click for charge density
+    document.getElementById("output").addEventListener("click", async e => {
+      try {
+        if (simulations.length === 0) return;
+        const img = e.target.closest("img");
+        if (!img) return;
+        const rect = img.getBoundingClientRect(), 
+              x = (e.clientX - rect.left) / rect.width, 
+              y = (e.clientY - rect.top) / rect.height;
+        if (x >= 0.05 && x <= 0.45 && y >= 0.55 && y <= 0.95) {
+          const X = (x - 0.05) / 0.4 * 2 - 1, 
+                Y = (y - 0.55) / 0.4 * 1 - 0.5, 
+                doping = parseFloat(document.getElementById("doping").value) || 1e12, 
+                Z = Math.exp(-(X ** 2 + Y ** 2) / (0.5 + doping * 1e-12)), 
+                tooltip = document.querySelector(".tooltip") || document.createElement("div");
+          if (!tooltip.className) { 
+            tooltip.className = "tooltip"; 
+            document.body.appendChild(tooltip); 
+          }
+          tooltip.style.left = `${e.clientX + 10}px`;
+          tooltip.style.top = `${e.clientY + 10}px`;
+          tooltip.textContent = `Плотность заряда: ${Z.toFixed(2)} усл. ед.`;
+          tooltip.style.display = "block";
+          setTimeout(() => { tooltip.style.display = "none"; }, 2000);
+        }
+      } catch (err) {
+        console.error("Error in output click:", err);
+        showError("Ошибка при клике на вывод.");
+      }
+    });
+
+    // Keyboard rotation
+    document.addEventListener("keydown", e => {
+      try {
+        if (selectedComponent && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+          selectedComponent.rotation += e.key === "ArrowLeft" ? -5 : 5;
+          drawCanvas();
+        }
+      } catch (err) {
+        console.error("Error in keydown:", err);
+        showError("Ошибка при вращении компонента.");
+      }
+    });
+
+    // Preview parameters
+    function previewParameters() {
+      try {
+        const mobility = parseFloat(document.getElementById("mobility").value) || 1000, 
+              gateVoltage = parseFloat(document.getElementById("gateVoltage").value) || 1.5, 
+              doping = parseFloat(document.getElementById("doping").value) || 1e12, 
+              temperature = parseFloat(document.getElementById("temperature").value) || 300, 
+              defects = parseFloat(document.getElementById("defects").value) || 1e10, 
+              layers = components.filter(c => c.type === "2D-Layer");
+        if (layers.length === 0) return;
+        const E_g_values = { "Graphene": 0, "MoS2": 1.8, "BN": 5, "WSe2": 1.2, 
+                            "BlackPhosphorus": 1.0, "Silicene": 0.1, "Stanene": 0.3, "ReS2": 1.5 }, 
+              E_g = layers.reduce((sum, c) => sum + E_g_values[c.material], 0) / layers.length, 
+              V_th = 0.5, 
+              mu_eff = mobility * (1 - defects * 1e-12) * (300 / temperature) ** 0.5, 
+              T_factor = E_g > 0 ? Math.exp(-E_g / (0.00008617 * temperature)) : 1, 
+              I_est = mu_eff * 7.96e-6 * (gateVoltage - V_th - E_g / 2) * 0.5 * (1 + doping * 1e-12) * T_factor;
+        document.getElementById("preview").textContent = `Оценка тока: ${(I_est > 0 ? I_est : 0).toFixed(2)} мкА`;
+      } catch (err) {
+        console.error("Error in previewParameters:", err);
+        showError("Ошибка при предварительном расчёте параметров.");
+      }
+    }
+
+    // Run simulation
+    async function runSimulation() {
+      console.log("Running simulation");
+      try {
+        const loadingBar = document.getElementById("loadingBar");
+        loadingBar.style.display = "block";
+        const pyodide = await pyodidePromise;
+        const errorDiv = document.getElementById("error");
+        const outputDiv = document.getElementById("output");
+        errorDiv.classList.add("hidden");
+        outputDiv.innerHTML = "<p>Выполняется симуляция...</p>";
+
+        const layers = components.filter(c => c.type === "2D-Layer");
+        if (layers.length === 0) {
+          showError("Добавьте хотя бы один слой 2D-материала!");
+          outputDiv.innerHTML = "";
+          loadingBar.style.display = "none";
+          return;
+        }
+        if (!components.some(c => c.type === "Source") || !components.some(c => c.type === "Drain")) {
+          showError("Добавьте исток и сток!");
+          outputDiv.innerHTML = "";
+          loadingBar.style.display = "none";
+          return;
+        }
+        if (!components.some(c => c.type === "Gate")) {
+          showError("Добавьте затвор!");
+          outputDiv.innerHTML = "";
+          loadingBar.style.display = "none";
+          return;
+        }
+
+        const mobility = parseFloat(document.getElementById("mobility").value) || 1000, 
+              gateVoltage = parseFloat(document.getElementById("gateVoltage").value) || 1.5, 
+              doping = parseFloat(document.getElementById("doping").value) || 1e12, 
+              temperature = parseFloat(document.getElementById("temperature").value) || 300, 
+              defects = parseFloat(document.getElementById("defects").value) || 1e10, 
+              substrate = document.getElementById("substrate").value;
+
+        if (isNaN(mobility) || isNaN(gateVoltage) || isNaN(doping) || isNaN(temperature) || isNaN(defects)) {
+          showError("Введите корректные числовые значения!");
+          outputDiv.innerHTML = "";
+          loadingBar.style.display = "none";
+          return;
+        }
+
+        const E_g_values = { "Graphene": 0.0, "MoS2": 1.8, "BN": 5.0, "WSe2": 1.2, 
+                            "BlackPhosphorus": 1.0, "Silicene": 0.1, "Stanene": 0.3, "ReS2": 1.5 }, 
+              E_g = layers.reduce((sum, c) => sum + E_g_values[c.material], 0) / layers.length, 
+              V_th = 0.5;
+        if (gateVoltage < V_th + E_g / 2) {
+          showError(`Напряжение затвора (${gateVoltage} В) должно быть больше ${V_th + E_g / 2} В для положительного тока!`);
+          outputDiv.innerHTML = "";
+          loadingBar.style.display = "none";
+          return;
+        }
+
+        const componentPatches = components.map(c => {
+          const label = c.material ? c.type + " (" + c.material + ")" : c.type;
+          return `ax1.add_patch(plt.Rectangle((${c.x / 100 - 1}, ${c.y / 100 - 0.5}), ${c.width / 100}, ${c.height / 100}, color="${c.color}", label="${label}"))`;
+        }).join("\n");
+
+        const gdsiiComponents = components.map(c => ({
+          type: c.type,
+          material: c.material || '',
+          x: c.x,
+          y: c.y,
+          width: c.width,
+          height: c.height,
+          thickness: c.thickness || 0
+        }));
+        const gdsiiData = JSON.stringify({
+          components: gdsiiComponents,
+          parameters: { mobility, gateVoltage, doping, temperature, defects, substrate }
+        });
+
+        const pythonCode = `
+import numpy as np
+import matplotlib.pyplot as plt
+from io import BytesIO
+import base64
+
+materials = [${layers.map(c => "\"" + c.material + "\"").join(",")}]
+thicknesses = [${layers.map(c => c.thickness).join(",")}]
+mobility = ${mobility}
+gate_voltage = ${gateVoltage}
+doping = ${doping}
+temperature = ${temperature}
+defects = ${defects}
+substrate = "${substrate}"
+C_ox_values = {"SiO2": 3.45e-6, "Al2O3": 7.96e-6}
+C_ox = C_ox_values[substrate]
+V_th = 0.5
+k_B = 8.617e-5
+q = 1.602e-19
+
+E_g_values = {"Graphene": 0.0, "MoS2": 1.8, "BN": 5.0, "WSe2": 1.2, "BlackPhosphorus": 1.0, "Silicene": 0.1, "Stanene": 0.3, "ReS2": 1.5}
+mu_values = {"Graphene": 20000, "MoS2": 200, "BN": 10, "WSe2": 150, "BlackPhosphorus": 1000, "Silicene": 1200, "Stanene": 800, "ReS2": 50}
+E_g = np.mean([E_g_values[m] for m in materials])
+mu_base = np.mean([mu_values[m] for m in materials])
+mu_eff = mobility * (1 - defects * 1e-12)
+
+T_factor = np.exp(-E_g / (k_B * temperature)) if E_g > 0 else 1.0
+tunnel_coeff = 1 / (1 + np.sum(thicknesses) * 0.1)
+spin_coeff = 1.0 if "Graphene" in materials else 0.95
+
+voltages = np.linspace(0, 1, 100)
+currents = mu_eff * C_ox * (gate_voltage - V_th - E_g / 2) * voltages * (1 + doping * 1e-12) * T_factor * tunnel_coeff * spin_coeff
+currents = np.maximum(currents, 0)
+noise = np.random.normal(0, max(0, defects * 1e-12 * np.max(currents)), currents.shape)
+currents = np.maximum(currents + noise, 0)
+
+efficiency = np.mean(currents) / (mu_eff * gate_voltage) if gate_voltage > 0 else 0
+subthreshold_slope = (np.log10(currents[10]) - np.log10(currents[1])) / (voltages[10] - voltages[1]) if currents[1] > 0 else 0
+freq_response = mu_eff / (np.sum(thicknesses) * 1e-9) * 1e-9
+
+fig = plt.figure(figsize=(15, 10))
+ax1 = plt.subplot(221)
+ax1.set_xlim(-2, 2)
+ax1.set_ylim(-1.5, 2)
+ax1.set_aspect('equal')
+${componentPatches}
+ax1.set_title('Схема транзистора')
+ax1.legend()
+ax1.set_xlabel('X ( усл. ед. )')
+ax1.set_ylabel('Y ( усл. ед. )')
+ax2 = plt.subplot(222)
+ax2.plot(voltages, currents, 'b-', label='I_ds')
+ax2.set_title(f'Вольт-амперная характеристика (КПД: {efficiency:.2f})')
+ax2.set_xlabel('Напряжение сток-исток (В)')
+ax2.set_ylabel('Ток (мкА)')
+ax2.grid(True)
+ax2.legend()
+ax3 = plt.subplot(223)
+X, Y = np.meshgrid(np.linspace(-1, 1, 20), np.linspace(-0.5, 0.5, 20))
+Z = np.exp(-(X**2 + Y**2) / (0.5 + doping * 1e-12))
+c = ax3.contourf(X, Y, Z, cmap='viridis')
+plt.colorbar(c, ax=ax3)
+ax3.set_title('Карта зарядов')
+ax3.set_xlabel('X ( усл. ед. )')
+ax3.set_ylabel('Y ( усл. ед. )')
+ax4 = plt.subplot(224)
+ax4.plot(voltages, currents * np.sin(2 * np.pi * voltages / np.max(voltages)), 'r-', label='Транспорт электронов')
+ax4.set_title('Динамика транспорта (упрощённая)')
+ax4.set_xlabel('Напряжение сток-исток (В)')
+ax4.set_ylabel('Модулированный ток (мкА)')
+ax4.grid(True)
+ax4.legend()
+plt.tight_layout()
+buf = BytesIO()
+plt.savefig(buf, format='png')
+buf.seek(0)
+img_base64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+plt.close()
+csv_data = f"""V_ds (V),I_ds (uA)
+{chr(10).join([f"{v:.2f},{c:.2f}" for v, c in zip(voltages, currents)])}
+
+Efficiency: {efficiency:.2f}
+Subthreshold Slope: {subthreshold_slope:.2f} decade/V
+Frequency Response: {freq_response:.2f} GHz"""
+gdsii_data = '''${gdsiiData}'''
+(img_base64, csv_data, gdsii_data, voltages.tolist(), currents.tolist(), efficiency, subthreshold_slope, freq_response)
+        `;
+
+        const [img_base64, csv_data, gdsii_data, voltages, currents, efficiency, subthreshold_slope, freq_response] = await pyodide.runPythonAsync(pythonCode);
+        const simData = { voltages, currents, efficiency, subthreshold_slope, freq_response, img_base64, csv_data, gdsii_data };
+        simulations.push(simData);
+        outputDiv.innerHTML = `<img src="data:image/png;base64,${img_base64}" alt="Результат симуляции" />`;
+        localStorage.setItem("transistor_csv", csv_data);
+        localStorage.setItem("transistor_gdsii", gdsii_data);
+        if (simulations.length > 1) document.getElementById("comparison").classList.remove("hidden");
+        loadingBar.style.display = "none";
+      } catch (err) {
+        console.error("Error in runSimulation:", err);
+        showError("Ошибка симуляции: " + err.message);
+        document.getElementById("output").innerHTML = "";
+        document.getElementById("loadingBar").style.display = "none";
+      }
+    }
+
+    // Optimize parameters
+    async function optimizeParameters() {
+      console.log("Optimizing parameters");
+      try {
+        const pyodide = await pyodidePromise;
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+        const mobility = parseFloat(document.getElementById("mobility").value) || 1000, 
+              gateVoltage = parseFloat(document.getElementById("gateVoltage").value) || 1.5, 
+              doping = parseFloat(document.getElementById("doping").value) || 1e12, 
+              temperature = parseFloat(document.getElementById("temperature").value) || 300, 
+              defects = parseFloat(document.getElementById("defects").value) || 1e10, 
+              substrate = document.getElementById("substrate").value, 
+              pythonCode = `
+import numpy as np
+mobility = ${mobility}
+gate_voltage = ${gateVoltage}
+doping = ${doping}
+temperature = ${temperature}
+defects = ${defects}
+substrate = "${substrate}"
+C_ox_values = {"SiO2": 3.45e-6, "Al2O3": 7.96e-6}
+C_ox = C_ox_values[substrate]
+V_th = 0.5
+E_g = 1.0
+k_B = 8.617e-5
+schottky_barrier = 0.3
+def objective(mu, V_g, n, T, d):
+  T_factor = np.exp(-E_g / (k_B * T)) if E_g > 0 else 1.0
+  mu_eff = mu * (1 - d * 1e-12) * (300 / T) ** 0.5
+  tunnel_coeff = np.exp(-1 * 0.1 * E_g - schottky_barrier / (k_B * T)) / (1 + 1 * 0.1)
+  I_on = mu_eff * C_ox * (V_g - V_th - E_g / 2) * 0.5 * (1 + n * 1e-12) * T_factor * tunnel_coeff
+  I_off = mu_eff * C_ox * (0 - V_th - E_g / 2) * 0.5 * (1 + n * 1e-12) * T_factor * tunnel_coeff
+  return -(I_on / max(I_off, 1e-10))
+mu = mobility
+V_g = gate_voltage
+n = doping
+T = temperature
+d = defects
+for _ in range(10):
+  grad_mu = (objective(mu + 10, V_g, n, T, d) - objective(mu, V_g, n, T, d)) / 10
+  grad_V_g = (objective(mu, V_g + 0.1, n, T, d) - objective(mu, V_g, n, T, d)) / 0.1
+  grad_n = (objective(mu, V_g, n + 1e11, T, d) - objective(mu, V_g, n, T, d)) / 1e11
+  grad_T = (objective(mu, V_g, n, T + 10, d) - objective(mu, V_g, n, T, d)) / 10
+  grad_d = (objective(mu, V_g, n, T, d + 1e9) - objective(mu, V_g, n, T, d)) / 1e9
+  mu = max(100, mu - 10 * grad_mu)
+  V_g = max(0.1, V_g - 0.1 * grad_V_g)
+  n = max(1e10, n - 1e11 * grad_n)
+  T = max(100, T - 10 * grad_T)
+  d = max(1e8, d - 1e9 * grad_d)
+[mu, V_g, n, T, d]
+        `;
+        const [opt_mu, opt_V_g, opt_n, opt_T, opt_d] = await pyodide.runPythonAsync(pythonCode);
+        document.getElementById("mobility").value = opt_mu.toFixed(0);
+        document.getElementById("gateVoltage").value = opt_V_g.toFixed(1);
+        document.getElementById("doping").value = opt_n.toFixed(0);
+        document.getElementById("temperature").value = opt_T.toFixed(0);
+        document.getElementById("defects").value = opt_d.toFixed(0);
+        previewParameters();
+        runSimulation();
+      } catch (err) {
+        console.error("Error in optimizeParameters:", err);
+        showError("Ошибка оптимизации: " + err.message);
+      }
+    }
+
+    // Save simulation
+    function saveSimulation() {
+      console.log("Saving simulation");
+      try {
+        if (simulations.length > 0) document.getElementById("comparison").classList.remove("hidden");
+        else showError("Нет симуляций для сохранения!");
+      } catch (err) {
+        console.error("Error in saveSimulation:", err);
+        showError("Ошибка при сохранении симуляции.");
+      }
+    }
+
+    // Toggle comparison
+    function toggleComparison() {
+      console.log("Toggling comparison");
+      try {
+        const comparisonDiv = document.getElementById("comparison"), 
+              comparisonOutput = document.getElementById("comparisonOutput");
+        if (simulations.length < 2 && !comparisonDiv.classList.contains("hidden")) {
+          showError("Нужно минимум 2 симуляции!");
+          return;
+        }
+        comparisonDiv.classList.toggle("hidden");
+        if (!comparisonDiv.classList.contains("hidden")) {
+          comparisonOutput.innerHTML = simulations.map((sim, i) => 
+            `<div class="mb-4 bg-opacity-20 p-4 rounded-lg" style="background: var(--card-bg);">
+              <h3 class="text-xl font-semibold">Симуляция ${i + 1}</h3>
+              <p>КПД: ${sim.efficiency.toFixed(2)}</p>
+              <p>Subthreshold Slope: ${sim.subthreshold_slope.toFixed(2)} decade/V</p>
+              <p>Frequency Response: ${sim.freq_response.toFixed(2)} GHz</p>
+              <img src="data:image/png;base64,${sim.img_base64}" style="max-width: 100%;" />
+            </div>`
+          ).join("");
+        }
+      } catch (err) {
+        console.error("Error in toggleComparison:", err);
+        showError("Ошибка при сравнении симуляций.");
+      }
+    }
+
+    // Export data
+    function exportData() {
+      console.log("Exporting CSV");
+      try {
+        const csv_data = localStorage.getItem("transistor_csv");
+        if (!csv_data) {
+          showError("Сначала выполните симуляцию!");
+          return;
+        }
+        const blob = new Blob([csv_data], { type: "text/csv" }), 
+              url = URL.createObjectURL(blob), 
+              a = document.createElement("a");
+        a.href = url;
+        a.download = "transistor_data.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Error in exportData:", err);
+        showError("Ошибка при экспорте CSV.");
+      }
+    }
+
+    // Export GDSII
+    function exportGDSII() {
+      console.log("Exporting GDSII");
+      try {
+        const gdsii_data = localStorage.getItem("transistor_gdsii");
+        if (!gdsii_data) {
+          showError("Сначала выполните симуляцию!");
+          return;
+        }
+        const blob = new Blob([gdsii_data], { type: "application/json" }), 
+              url = URL.createObjectURL(blob), 
+              a = document.createElement("a");
+        a.href = url;
+        a.download = "transistor_gdsii.json";
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Error in exportGDSII:", err);
+        showError("Ошибка при экспорте GDSII.");
+      }
+    }
+
+    // Export PDF
+    function exportPDF() {
+      console.log("Exporting PDF");
+      try {
+        const img_base64 = simulations.length > 0 ? simulations[simulations.length - 1].img_base64 : null;
+        if (!img_base64) {
+          showError("Сначала выполните симуляцию!");
+          return;
+        }
+        const pdf = new window.jspdf.jsPDF();
+        pdf.addImage(`data:image/png;base64,${img_base64}`, 'PNG', 10, 10, 190, 120);
+        pdf.save("transistor_simulation.pdf");
+      } catch (err) {
+        console.error("Error in exportPDF:", err);
+        showError("Ошибка при экспорте PDF.");
+      }
+    }
+
+    // Remove component
+    function removeComponent() {
+      console.log("Removing component");
+      try {
+        if (contextMenuTarget) {
+          components = components.filter(c => c !== contextMenuTarget);
+          contextMenu.style.display = "none";
+          contextMenuTarget = null;
+          drawCanvas();
+        }
+      } catch (err) {
+        console.error("Error in removeComponent:", err);
+        showError("Ошибка при удалении компонента.");
+      }
+    }
+
+    // Duplicate component
+    function duplicateComponent() {
+      console.log("Duplicating component");
+      try {
+        if (contextMenuTarget) {
+          const newComp = { ...contextMenuTarget, x: contextMenuTarget.x + 20, y: contextMenuTarget.y + 20 };
+          components.push(newComp);
+          contextMenu.style.display = "none";
+          contextMenuTarget = null;
+          drawCanvas();
+        }
+      } catch (err) {
+        console.error("Error in duplicateComponent:", err);
+        showError("Ошибка при дублировании компонента.");
+      }
+    }
+
+    // Edit properties
+    function editProperties() {
+      console.log("Editing properties");
+      try {
+        if (contextMenuTarget && contextMenuTarget.type === "2D-Layer") {
+          document.getElementById("material").value = contextMenuTarget.material;
+          document.getElementById("thickness").value = contextMenuTarget.thickness;
+          contextMenu.style.display = "none";
+          contextMenuTarget = null;
+        }
+      } catch (err) {
+        console.error("Error in editProperties:", err);
+        showError("Ошибка при редактировании свойств.");
+      }
+    }
+
+    // Load example
+    function loadExample() {
+      console.log("Loading example");
+      try {
+        const example = document.getElementById("example").value;
+        components = [];
+        if (example === "graphene") {
+          components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 300, height: 60, color: "#999", material: "Graphene", thickness: 0.7, scale: 1, rotation: 0 },
+            { type: "Source", x: 20, y: 80, width: 40, height: 40, color: "#bdc3c7", scale: 1, rotation: 0 },
+            { type: "Drain", x: 340, y: 80, width: 40, height: 40, color: "#bdc3c7", scale: 1, rotation: 0 },
+            { type: "Gate", x: 50, y: 20, width: 300, height: 30, color: "#f1c40f", scale: 1, rotation: 0 }
+          ];
+          document.getElementById("material").value = "Graphene";
+          document.getElementById("thickness").value = "0.7";
+          document.getElementById("substrate").value = "SiO2";
+          document.getElementById("mobility").value = "10000";
+          document.getElementById("gateVoltage").value = "1.0";
+          document.getElementById("doping").value = "1e12";
+          document.getElementById("temperature").value = "300";
+          document.getElementById("defects").value = "1e10";
+        } else if (example === "mos2") {
+          components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 250, height: 50, color: "#2ecc71", material: "MoS2", thickness: 0.65, scale: 1, rotation: 10 },
+            { type: "Source", x: 30, y: 90, width: 50, height: 50, color: "#bdc3c7", scale: 1, rotation: 0 },
+            { type: "Drain", x: 300, y: 90, width: 50, height: 50, color: "#bdc3c7", scale: 1, rotation: 0 },
+            { type: "Gate", x: 50, y: 10, width: 250, height: 25, color: "#f1c40f", scale: 1, rotation: 10 }
+          ];
+          document.getElementById("material").value = "MoS2";
+          document.getElementById("thickness").value = "0.65";
+          document.getElementById("substrate").value = "Al2O3";
+          document.getElementById("mobility").value = "200";
+          document.getElementById("gateVoltage").value = "1.5";
+          document.getElementById("doping").value = "5e11";
+          document.getElementById("temperature").value = "250";
+          document.getElementById("defects").value = "5e9";
+        } else if (example === "hybrid") {
+          components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 280, height: 55, color: "#999", material: "Graphene", thickness: 0.7, scale: 1, rotation: 0 },
+            { type: "2D-Layer", x: 50, y: 105, width: 280, height: 55, color: "#2ecc71", material: "MoS2", thickness: 0.65, scale: 1, rotation: 0 },
+            { type: "Source", x: 25, y: 140, width: 45, height: 45, color: "#bdc3c7", scale: 1, rotation: 0 },
+            { type: "Drain", x: 325, y: 140, width: 45, height: 45, color: "#bdc3c7", scale: 1, rotation: 0 },
+            { type: "Gate", x: 50, y: 20, width: 280, height: 30, color: "#f1c40f", scale: 1, rotation: 0 }
+          ];
+          document.getElementById("material").value = "Graphene";
+          document.getElementById("thickness").value = "0.7";
+          document.getElementById("substrate").value = "SiO2";
+          document.getElementById("mobility").value = "800";
+          document.getElementById("gateVoltage").value = "1.2";
+          document.getElementById("doping").value = "2e12";
+          document.getElementById("temperature").value = "280";
+          document.getElementById("defects").value = "2e10";
+        } else if (example === "wse2") {
+          components = [
+            { type: "2D-Layer", x: 60, y: 60, width: 260, height: 50, color: "#9b59b6", material: "WSe2", thickness: 0.7, scale: 1, rotation: 5 },
+            { type: "Source", x: 40, y: 100, width: 50, height: 50, color: "#bdc3c7", scale: 1, rotation: 0 },
+            { type: "Drain", x: 310, y: 100, width: 50, height: 50, color: "#bdc3c7", scale: 1, rotation: 0 },
+            { type: "Gate", x: 60, y: 20, width: 260, height: 25, color: "#f1c40f", scale: 1, rotation: 5 }
+          ];
+          document.getElementById("material").value = "WSe2";
+          document.getElementById("thickness").value = "0.7";
+          document.getElementById("substrate").value = "Al2O3";
+          document.getElementById("mobility").value = "150";
+          document.getElementById("gateVoltage").value = "1.8";
+          document.getElementById("doping").value = "3e11";
+          document.getElementById("temperature").value = "200";
+          document.getElementById("defects").value = "1e9";
+        } else if (example === "bn") {
+          components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 300, height: 60, color: "#00
