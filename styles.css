@@ -1,0 +1,293 @@
+/* Глобальные стили */
+:root {
+  --primary: #1e40af;
+  --primary-light: #3b82f6;
+  --secondary: #10b981;
+  --background-light: #f3f4f6;
+  --background-dark: #1f2937;
+  --text-light: #111827;
+  --text-dark: #f9fafb;
+  --card-bg-light: rgba(255, 255, 255, 0.9);
+  --card-bg-dark: rgba(31, 41, 55, 0.9);
+  --shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  --border: #d1d5db;
+}
+
+[data-theme="dark"] {
+  --background: var(--background-dark);
+  --text: var(--text-dark);
+  --card-bg: var(--card-bg-dark);
+}
+
+[data-theme="light"] {
+  --background: var(--background-light);
+  --text: var(--text-light);
+  --card-bg: var(--card-bg-light);
+}
+
+body {
+  margin: 0;
+  padding: 1.5rem;
+  background: var(--background);
+  color: var(--text);
+  font-family: 'Inter', sans-serif;
+  transition: background 0.3s, color 0.3s;
+}
+
+/* Компоненты */
+.canvas-container {
+  border: 2px solid var(--border);
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 800px;
+  height: auto;
+  aspect-ratio: 8 / 5;
+  position: relative;
+}
+
+.control-panel {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 350px;
+  box-shadow: var(--shadow);
+  margin-bottom: 1rem;
+}
+
+.tabs {
+  display: flex;
+  border-bottom: 2px solid var(--primary);
+  margin-bottom: 1rem;
+}
+
+.tab {
+  flex: 1;
+  padding: 0.75rem;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  font-weight: 600;
+  color: var(--text);
+  transition: background 0.3s, color 0.3s;
+}
+
+.tab.active {
+  background: var(--primary);
+  color: white;
+}
+
+.tab:hover {
+  background: var(--primary-light);
+  color: white;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
+.button-group {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+button {
+  background: var(--primary);
+  padding: 0.75rem;
+  font-size: 1rem;
+  width: 100%;
+  border-radius: 8px;
+  color: white;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+.theme-toggle {
+  margin: 1rem 0;
+  background: var(--secondary);
+}
+
+.example-btn {
+  background: var(--secondary);
+}
+
+input, select {
+  font-size: 1rem;
+  padding: 0.6rem;
+  width: 100%;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  transition: border-color 0.3s;
+}
+
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.accordion-header {
+  background: var(--primary);
+  padding: 0.75rem;
+  border-radius: 8px;
+  cursor: pointer;
+  color: white;
+  margin-bottom: 0.5rem;
+}
+
+.accordion-content {
+  display: none;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.accordion-content.active {
+  display: block;
+}
+
+.comparison-panel {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 1.5rem;
+  max-width: 350px;
+  margin-top: 1rem;
+  display: none;
+  box-shadow: var(--shadow);
+}
+
+.tooltip {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--primary);
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  z-index: 1000;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+}
+
+.context-menu {
+  display: none;
+  position: absolute;
+  background: var(--card-bg);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 0.5rem;
+  z-index: 1000;
+  min-width: 150px;
+}
+
+.context-menu-item {
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.context-menu-item:hover {
+  background: var(--primary-light);
+  color: white;
+}
+
+.toolbar {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.draggable-item {
+  width: 50px;
+  height: 50px;
+  background: #999;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  cursor: move;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: white;
+  transition: transform 0.2s;
+}
+
+.draggable-item:hover {
+  transform: scale(1.1);
+}
+
+.grid-toggle {
+  margin-top: 1rem;
+  background: var(--secondary);
+}
+
+/* Анимации */
+.loading-bar {
+  display: none;
+  width: 0%;
+  height: 4px;
+  backgroundazionali: none;
+  background: var(--secondary);
+  border-radius: 2px;
+  animation: loading 2s ease-in-out forwards;
+}
+
+@keyframes loading {
+  to { width: 100%; }
+}
+
+.selected {
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% { box-shadow: 0 0 5px var(--primary); }
+  50% { box-shadow: 0 0 15px var(--primary-light); }
+  100% { box-shadow: 0 0 5px var(--primary); }
+}
+
+/* Сетка */
+.grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.grid-line {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Медиа-запросы */
+@media (max-width: 768px) {
+  .control-panel, .comparison-panel { max-width: 100%; }
+  .canvas-container { max-width: 100%; }
+  button, input, select { font-size: 0.9rem; padding: 0.6rem; }
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.25rem; }
+  .tabs { flex-wrap: wrap; }
+  .tab { flex: 1 1 50%; }
+  .toolbar { flex-direction: column; }
+}

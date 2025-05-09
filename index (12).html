@@ -1,0 +1,185 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aqua Transistor Studio</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="light">
+  <div class="max-w-7xl mx-auto flex flex-col gap-8">
+    <button onclick="toggleTheme()" class="theme-toggle text-white py-2 px-4 rounded" aria-label="Переключить тему">Тёмная/Светлая тема</button>
+    <h1 class="text-4xl font-bold text-center mb-8">Aqua Transistor Studio</h1>
+    <div class="toolbar" id="toolbar">
+      <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="Graphene" style="background: #999;">Layer</div>
+      <div class="draggable-item" draggable="true" data-type="Source" style="background: #bdc3c7;">S</div>
+      <div class="draggable-item" draggable="true" data-type="Drain" style="background: #bdc3c7;">D</div>
+      <div class="draggable-item" draggable="true" data-type="Gate" style="background: #f1c40f;">G</div>
+    </div>
+    <div class="flex flex-col gap-8">
+      <div class="control-panel">
+        <div class="tabs" role="tablist">
+          <div class="tab active" onclick="switchTab('constructor')" role="tab" aria-selected="true" aria-controls="constructor">Конструктор</div>
+          <div class="tab" onclick="switchTab('simulation')" role="tab" aria-selected="false" aria-controls="simulation">Симуляция</div>
+          <div class="tab" onclick="switchTab('export')" role="tab" aria-selected="false" aria-controls="export">Экспорт</div>
+          <div class="tab" onclick="switchTab('examples')" role="tab" aria-selected="false" aria-controls="examples">Примеры</div>
+        </div>
+        <div id="constructor" class="tab-content active" role="tabpanel">
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="component">Добавить компонент:</label>
+            <select id="component" class="mb-2">
+              <option value="2D-Layer">Слой 2D-материала</option>
+              <option value="Source">Исток</option>
+              <option value="Drain">Сток</option>
+              <option value="Gate">Затвор</option>
+            </select>
+            <button onclick="addComponent()">Добавить компонент</button>
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="material">Материал слоя:</label>
+            <select id="material">
+              <option value="Graphene">Графен</option>
+              <option value="MoS2">MoS₂</option>
+              <option value="BN">h-BN (диэлектрик)</option>
+              <option value="WSe2">WSe₂</option>
+            </select>
+            <label class="block text-sm font-medium mb-2 mt-2" for="thickness">Толщина слоя (нм):</label>
+            <input id="thickness" type="number" step="0.1" value="0.7" />
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="substrate">Подложка:</label>
+            <select id="substrate">
+              <option value="SiO2">SiO₂ (ε=3.9)</option>
+              <option value="Al2O3">Al₂O₃ (ε=9.0)</option>
+            </select>
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="mobility">Подвижность (см²/В·с):</label>
+            <input id="mobility" type="number" value="1000" oninput="previewParameters()" />
+            <label class="block text-sm font-medium mb-2 mt-2" for="gateVoltage">Напряжение затвора (В):</label>
+            <input id="gateVoltage" type="number" step="0.1" value="1.5" oninput="previewParameters()" />
+            <label class="block text-sm font-medium mb-2 mt-2" for="doping">Легирование (см⁻²):</label>
+            <input id="doping" type="number" value="1e12" oninput="previewParameters()" />
+            <label class="block text-sm font-medium mb-2 mt-2" for="temperature">Температура (К):</label>
+            <input id="temperature" type="number" value="300" oninput="previewParameters()" />
+            <label class="block text-sm font-medium mb-2 mt-2" for="defects">Дефекты (см⁻²):</label>
+            <input id="defects" type="number" value="1e10" oninput="previewParameters()" />
+          </div>
+          <button id="toggleGrid" class="grid-toggle text-white py-2 px-4 rounded mt-4" onclick="toggleGrid()">Включить сетку</button>
+        </div>
+        <div id="simulation" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <button onclick="runSimulation()">Запустить симуляцию</button>
+            <div class="loading-bar" id="loadingBar"></div>
+            <button onclick="optimizeParameters()" class="mt-2">Оптимизировать</button>
+            <div id="preview" class="text-sm mt-4"></div>
+          </div>
+        </div>
+        <div id="export" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <button onclick="saveSimulation()">Сохранить симуляцию</button>
+            <button onclick="toggleComparison()" class="mt-2">Сравнить симуляции</button>
+          </div>
+          <div class="button-group">
+            <button onclick="exportPDF()">Экспорт PDF</button>
+            <button onclick="exportData()" class="mt-2">Экспорт CSV</button>
+            <button onclick="exportGDSII()" class="mt-2">Экспорт GDSII JSON</button>
+          </div>
+        </div>
+        <div id="examples" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-2" for="example">Выберите пример:</label>
+            <select id="example" class="mb-2">
+              <option value="graphene">Графеновый FET</option>
+              <option value="mos2">MoS2 FET</option>
+              <option value="hybrid">Гибридный FET</option>
+              <option value="wse2">WSe2 FET</option>
+              <option value="bn">BN-диэлектрический FET</option>
+            </select>
+            <button onclick="loadExample()" class="example-btn">Загрузить пример</button>
+          </div>
+        </div>
+        <div id="error" class="text-red-500 mt-4 hidden" role="alert"></div>
+      </div>
+      <div class="w-full flex flex-col items-center">
+        <div class="canvas-container position-relative">
+          <canvas id="canvas"></canvas>
+          <div class="grid" id="grid" style="display: none;"></div>
+        </div>
+        <div id="output" class="mt-6 w-full max-w-3xl"></div>
+        <div id="comparison" class="comparison-panel">
+          <h2 class="text-2xl font-semibold mb-4">Сравнение симуляций</h2>
+          <button onclick="toggleComparison()" class="bg-red-500 text-white py-2 px-4 rounded mb-4">Закрыть</button>
+          <div id="comparisonOutput"></div>
+        </div>
+        <div class="mt-8 w-full max-w-3xl bg-opacity-20 p-6 rounded-lg shadow-xl" style="background: var(--card-bg);">
+          <h2 class="text-2xl font-semibold mb-4">Руководство и подсказки</h2>
+          <div class="accordion">
+            <div class="accordion-header" onclick="toggleAccordion(this)">Основы</div>
+            <div class="accordion-content">
+              <p class="text-sm mb-2">1. Перетаскивайте компоненты пальцем/мышкой, масштабируйте двумя пальцами/колесом.</p>
+              <p class="text-sm mb-2">2. Кликните на карту зарядов для плотности.</p>
+            </div>
+            <div class="accordion-header" onclick="toggleAccordion(this)">Экспорт</div>
+            <div class="accordion-content">
+              <p class="text-sm mb-2">3. Сохраняйте и сравнивайте симуляции.</p>
+              <p class="text-sm mb-2">4. Экспортируйте в PDF, CSV, GDSII.</p>
+            </div>
+            <div class="accordion-header" onclick="toggleAccordion(this)">Подсказка</div>
+            <div class="accordion-content">
+              <p class="text-sm font-semibold">Подсказка: Понизьте температуру и дефекты для квантовой проводимости!</p>
+            </div>
+          </div>
+        </div>
+        <div id="contextMenu" class="context-menu">
+          <div class="context-menu-item" onclick="removeComponent()">Удалить</div>
+          <div class="context-menu-item" onclick="duplicateComponent()">Дублировать</div>
+          <div class="context-menu-item" onclick="editProperties()">Изменить свойства</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="main.js" type="module"></script>
+</body>
+</html>
