@@ -1,0 +1,113 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aqua Transistor Studio</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    /* CSS переменные для светлой и тёмной темы */
+    :root {
+      --primary: #1e40af;
+      --secondary: #10b981;
+      --background-light: #f3f4f6;
+      --background-dark: #1f2937;
+      --text-light: #111827;
+      --text-dark: #f9fafb;
+    }
+
+    [data-theme="dark"] {
+      --background: var(--background-dark);
+      --text: var(--text-dark);
+    }
+
+    [data-theme="light"] {
+      --background: var(--background-light);
+      --text: var(--text-light);
+    }
+
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      background: var(--background);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .tab {
+      cursor: pointer;
+      transition: background 0.3s, color 0.3s;
+    }
+
+    .tab.active {
+      background: var(--primary);
+      color: white;
+    }
+
+    .tooltip, .context-menu {
+      position: absolute;
+      z-index: 1000;
+      display: none;
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="max-w-7xl mx-auto flex flex-col gap-8">
+    <button id="themeToggle" class="theme-toggle text-white bg-blue-600 py-2 px-4 rounded hover:bg-blue-700" aria-label="Переключить тему">Тёмная/Светлая тема</button>
+    <h1 class="text-4xl font-bold text-center mb-8">Aqua Transistor Studio</h1>
+    <div class="toolbar bg-gray-100 p-4 rounded" id="toolbar"></div>
+    <div class="flex flex-col gap-8">
+      <div id="controlPanel" class="control-panel bg-gray-100 p-4 rounded"></div>
+      <div id="canvasWrapper" class="canvas-container">
+        <canvas id="canvas" width="800" height="600" style="border: 1px solid #ccc;"></canvas>
+      </div>
+      <div id="output" class="mt-6 w-full max-w-3xl bg-gray-100 p-4 rounded"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  <script src="scripts/ui.js"></script>
+  <script src="scripts/simulation.js"></script>
+  <script src="scripts/events.js"></script>
+</body>
+</html>
