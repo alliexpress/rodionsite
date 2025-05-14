@@ -1,0 +1,2439 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aqua Transistor Studio</title>
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.26.2/full/pyodide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --background: #0a0f1c;
+      --text: #00ff88;
+      --neon-green: #00ff88;
+      --neon-purple: #bb33ff;
+      --neon-blue: #33ccff;
+      --panel-bg: rgba(10, 15, 28, 0.85);
+      --border: #00ff88;
+      --shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+      --grid: rgba(0, 255, 136, 0.2);
+      --error: #ff3333;
+    }
+
+    body {
+      margin: 0;
+      padding: 1.5rem;
+      background: var(--background);
+      color: var(--text);
+      font-family: 'Fira Code', monospace;
+      overflow-x: hidden;
+    }
+
+    .main-container {
+      display: flex;
+      flex-direction: row;
+      gap: 1.5rem;
+      max-width: 100%;
+      margin: 0 auto;
+    }
+
+    .canvas-section {
+      flex: 3;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .canvas-container {
+      border: 2px solid var(--neon-green);
+      background: linear-gradient(135deg, rgba(0, 255, 136, 0.1), rgba(0, 0, 0, 0.5));
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      width: 100%;
+      height: 600px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      filter: drop-shadow(0 0 5px var(--neon-green));
+    }
+
+    .control-panel {
+      flex: 1;
+      background: var(--panel-bg);
+      border: 1px solid var(--neon-purple);
+      border-radius: 8px;
+      padding: 1rem;
+      max-height: 600px;
+      overflow-y: auto;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(5px);
+    }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      border-bottom: 2px solid var(--neon-blue);
+      margin-bottom: 1rem;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.5rem;
+      text-align: center;
+      background: rgba(0, 255, 136, 0.1);
+      cursor: pointer;
+      border-radius: 4px 4px 0 0;
+      font-weight: 700;
+      color: var(--text);
+      transition: all 0.3s ease;
+      min-width: 80px;
+    }
+
+    .tab.active {
+      background: var(--neon-blue);
+      color: #0a0f1c;
+    }
+
+    .tab:hover {
+      background: var(--neon-purple);
+      color: #0a0f1c;
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .button-group {
+      margin-bottom: 1rem;
+      padding: 0.75rem;
+      background: rgba(0, 255, 136, 0.05);
+      border-radius: 4px;
+      border: 1px solid var(--neon-green);
+    }
+
+    button {
+      background: var(--neon-green);
+      padding: 0.5rem;
+      font-size: 0.9rem;
+      width: 100%;
+      border-radius: 4px;
+      color: #0a0f1c;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: 'Fira Code', monospace;
+      border: none;
+      margin-bottom: 0.5rem;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 20px var(--neon-green);
+    }
+
+    button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+
+    input, select {
+      font-size: 0.9rem;
+      padding: 0.5rem;
+      width: 100%;
+      border-radius: 4px;
+      background: rgba(0, 255, 136, 0.1);
+      color: var(--text);
+      border: 1px solid var(--neon-blue);
+      font-family: 'Fira Code', monospace;
+      transition: border-color 0.3s ease;
+      margin-bottom: 0.5rem;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--neon-purple);
+      box-shadow: 0 0 10px var(--neon-purple);
+    }
+
+    .toolbar {
+      background: var(--panel-bg);
+      border: 1px solid var(--neon-blue);
+      border-radius: 8px;
+      padding: 0.5rem;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .draggable-item {
+      width: 40px;
+      height: 40px;
+      background: var(--neon-green);
+      border: 2px solid var(--neon-blue);
+      border-radius: 4px;
+      cursor: move;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: #0a0f1c;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .draggable-item:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 15px var(--neon-blue);
+    }
+
+    .context-menu {
+      position: absolute;
+      background: var(--panel-bg);
+      border: 1px solid var(--neon-purple);
+      border-radius: 4px;
+      box-shadow: var(--shadow);
+      z-index: 1000;
+      display: none;
+      backdrop-filter: blur(5px);
+    }
+
+    .context-menu div {
+      padding: 0.5rem 1rem;
+      cursor: pointer;
+      color: var(--text);
+      transition: background 0.2s ease;
+    }
+
+    .context-menu div:hover {
+      background: var(--neon-purple);
+      color: #0a0f1c;
+    }
+
+    .loading-bar {
+      display: none;
+      width: 0%;
+      height: 4px;
+      background: var(--neon-green);
+      border-radius: 2px;
+      animation: loading 2s ease-in-out forwards;
+    }
+
+    @keyframes loading { to { width: 100%; } }
+
+    #chart, #heatmap {
+      width: 100%;
+      height: 300px;
+      margin-top: 1rem;
+      filter: drop-shadow(0 0 5px var(--neon-green));
+    }
+
+    .legend {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      background: var(--panel-bg);
+      padding: 0.5rem;
+      border-radius: 4px;
+      border: 1px solid var(--neon-blue);
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+
+    #error {
+      color: var(--error);
+      font-weight: 700;
+      margin-top: 1rem;
+    }
+
+    .comparison-panel, .logs-panel {
+      background: var(--panel-bg);
+      border: 1px solid var(--neon-purple);
+      border-radius: 8px;
+      padding: 1rem;
+      max-width: 500px;
+      margin-top: 1rem;
+      display: none;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(5px);
+    }
+
+    .accordion-header {
+      background: var(--neon-blue);
+      padding: 0.5rem;
+      border-radius: 4px;
+      cursor: pointer;
+      color: #0a0f1c;
+      margin-bottom: 0.5rem;
+    }
+
+    .accordion-content {
+      display: none;
+      padding: 0.75rem;
+      background: rgba(0, 255, 136, 0.05);
+      border-radius: 4px;
+      border: 1px solid var(--neon-green);
+    }
+
+    .accordion-content.active { display: block; }
+
+    .guide-section {
+      margin-top: 1.5rem;
+      background: var(--panel-bg);
+      border: 1px solid var(--neon-purple);
+      border-radius: 8px;
+      padding: 1rem;
+      max-width: 800px;
+      box-shadow: var(--shadow);
+    }
+
+    @media (max-width: 1024px) {
+      .main-container {
+        flex-direction: column;
+      }
+      .control-panel {
+        max-height: 400px;
+      }
+      .canvas-container {
+        height: 400px;
+      }
+      button, input, select {
+        font-size: 0.8rem;
+        padding: 0.4rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="max-w-7xl mx-auto">
+    <div class="flex justify-between items-center mb-4">
+      <button onclick="toggleTheme()" class="py-1 px-3 rounded bg-[#bb33ff] text-[#0a0f1c]" aria-label="Переключить тему">Тёмная/Светлая</button>
+      <div class="flex gap-2">
+        <button onclick="undo()" class="bg-[#33ccff] text-[#0a0f1c] py-1 px-3 rounded" aria-label="Отменить">Undo</button>
+        <button onclick="redo()" class="bg-[#33ccff] text-[#0a0f1c] py-1 px-3 rounded" aria-label="Повторить">Redo</button>
+        <button onclick="clearCanvas()" class="bg-[#ff3333] text-[#0a0f1c] py-1 px-3 rounded" aria-label="Очистить">Очистить</button>
+        <button onclick="autoSave()" class="bg-[#00ff88] text-[#0a0f1c] py-1 px-3 rounded" aria-label="Автосохранение">Автосохранение</button>
+        <button onclick="toggleFullscreen()" class="bg-[#33ccff] text-[#0a0f1c] py-1 px-3 rounded" aria-label="Полноэкранный режим">Полноэкранный режим</button>
+      </div>
+    </div>
+    <h1 class="text-3xl font-bold text-center mb-6 text-[#00ff88] drop-shadow-[0_0_10px_#00ff88]">Aqua Transistor Studio</h1>
+    <div class="main-container">
+      <div class="canvas-section">
+        <div class="toolbar" id="toolbar">
+          <div class="draggable-item" draggable="true" data-type="2D-Layer" data-material="Graphene" style="background: #00ff88;">Layer</div>
+          <div class="draggable-item" draggable="true" data-type="Source" style="background: #33ccff;">S</div>
+          <div class="draggable-item" draggable="true" data-type="Drain" style="background: #33ccff;">D</div>
+          <div class="draggable-item" draggable="true" data-type="Gate" style="background: #bb33ff;">G</div>
+          <div class="draggable-item" draggable="true" data-type="Connection" style="background: #00ff88;">C</div>
+          <div class="draggable-item" draggable="true" data-type="Contact" style="background: #33ccff;">Contact</div>
+        </div>
+        <div class="canvas-container">
+          <canvas id="canvas"></canvas>
+        </div>
+        <div id="output" class="mt-4 w-full"></div>
+      </div>
+      <div class="control-panel">
+        <div class="tabs" role="tablist">
+          <div class="tab active" onclick="switchTab('constructor')" role="tab" aria-selected="true">Конструктор</div>
+          <div class="tab" onclick="switchTab('simulation')" role="tab" aria-selected="false">Симуляция</div>
+          <div class="tab" onclick="switchTab('analysis')" role="tab" aria-selected="false">Анализ</div>
+          <div class="tab" onclick="switchTab('visualization')" role="tab" aria-selected="false">Визуализация</div>
+          <div class="tab" onclick="switchTab('export')" role="tab" aria-selected="false">Экспорт</div>
+          <div class="tab" onclick="switchTab('examples')" role="tab" aria-selected="false">Примеры</div>
+          <div class="tab" onclick="switchTab('settings')" role="tab" aria-selected="false">Настройки</div>
+          <div class="tab" onclick="switchTab('logs')" role="tab" aria-selected="false">Логи</div>
+        </div>
+        <div id="constructor" class="tab-content active" role="tabpanel">
+          <p class="text-sm mb-2">Подсказка: Используйте Ctrl+R для симуляции, Ctrl+Z/Y для Undo/Redo.</p>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-1" for="component">Добавить компонент:</label>
+            <select id="component">
+              <option value="2D-Layer">Слой 2D-материала</option>
+              <option value="Source">Исток</option>
+              <option value="Drain">Сток</option>
+              <option value="Gate">Затвор</option>
+              <option value="Connection">Соединение</option>
+              <option value="Contact">Контакт</option>
+            </select>
+            <button onclick="addComponent()">Добавить компонент</button>
+            <button onclick="autoAssembleTransistor()">Автосборка транзистора</button>
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-1" for="material">Материал слоя:</label>
+            <select id="material">
+              <option value="Graphene">Графен</option>
+              <option value="MoS2">MoS₂</option>
+              <option value="BN">h-BN</option>
+              <option value="WSe2">WSe₂</option>
+              <option value="BlackPhosphorus">Чёрный фосфор</option>
+              <option value="Graphite">Графит</option>
+              <option value="Silicene">Силицен</option>
+              <option value="Stanene">Станен</option>
+              <option value="Phosphorene">Фосфорен</option>
+              <option value="MoSe2">MoSe₂</option>
+              <option value="WS2">WS₂</option>
+              <option value="BluePhosphorus">Синий фосфор</option>
+              <option value="CarbonNanotubes">Углеродные нанотрубки</option>
+              <option value="MXene">MXene</option>
+            </select>
+            <label class="block text-sm font-medium mb-1" for="thickness">Толщина слоя (нм):</label>
+            <input id="thickness" type="number" step="0.1" value="0.7" />
+            <label class="block text-sm font-medium mb-1" for="dielectric">Диэлектрическая проницаемость:</label>
+            <input id="dielectric" type="number" step="0.1" value="4.0" />
+            <label class="block text-sm font-medium mb-1" for="bandgap">Ширина запрещённой зоны (эВ):</label>
+            <input id="bandgap" type="number" step="0.01" value="0" />
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-1" for="substrate">Подложка:</label>
+            <select id="substrate">
+              <option value="SiO2">SiO₂</option>
+              <option value="Al2O3">Al₂O₃</option>
+              <option value="HfO2">HfO₂</option>
+              <option value="Si3N4">Si₃N₄</option>
+            </select>
+            <label class="block text-sm font-medium mb-1" for="subThickness">Толщина подложки (нм):</label>
+            <input id="subThickness" type="number" step="0.1" value="300" />
+            <label class="block text-sm font-medium mb-1" for="subDielectric">Диэлектрическая проницаемость подложки:</label>
+            <input id="subDielectric" type="number" step="0.1" value="3.9" />
+          </div>
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-1" for="mobility">Подвижность (см²/В·с):</label>
+            <input id="mobility" type="number" value="1000" />
+            <label class="block text-sm font-medium mb-1" for="gateVoltage">Напряжение затвора (В):</label>
+            <input id="gateVoltage" type="number" step="0.1" value="1.5" />
+            <label class="block text-sm font-medium mb-1" for="doping">Легирование (см⁻²):</label>
+            <input id="doping" type="number" value="1e12" />
+            <label class="block text-sm font-medium mb-1" for="temperature">Температура (К):</label>
+            <input id="temperature" type="number" value="300" />
+            <label class="block text-sm font-medium mb-1" for="defects">Дефекты (см⁻²):</label>
+            <input id="defects" type="number" value="1e10" />
+            <label class="block text-sm font-medium mb-1" for="contactResistance">Контактное сопротивление (Ом·см):</label>
+            <input id="contactResistance" type="number" value="100" />
+            <label class="block text-sm font-medium mb-1" for="schottkyBarrier">Барьер Шоттки (эВ):</label>
+            <input id="schottkyBarrier" type="number" step="0.01" value="0.3" />
+          </div>
+        </div>
+        <div id="simulation" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <button onclick="runSimulation()">Запустить симуляцию</button>
+            <div class="loading-bar" id="loadingBar"></div>
+            <button onclick="optimizeParameters()">Оптимизировать параметры</button>
+            <button onclick="multiObjectiveOptimization()">Многоцелевая оптимизация</button>
+            <button onclick="runSensitivityAnalysis()">Анализ чувствительности</button>
+            <button onclick="runThermalSimulation()">Температурная симуляция</button>
+            <button onclick="runReliabilityAnalysis()">Анализ надёжности</button>
+            <button onclick="runFlickerNoiseSimulation()">Шум 1/f</button>
+            <button onclick="runDefectSimulation()">Симуляция дефектов</button>
+            <button onclick="runMaterialBatchSimulation()">Симуляция по материалам</button>
+            <button onclick="runTransientSimulation()">Переходные процессы</button>
+            <button onclick="runPowerAnalysis()">Анализ мощности</button>
+            <button onclick="runQuantumSimulation()">Квантовая симуляция</button>
+            <button onclick="checkTopology()">Проверка топологии</button>
+            <div id="preview" class="text-sm mt-2"></div>
+          </div>
+        </div>
+        <div id="analysis" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <button onclick="plotIVCurve()">Построить ВАХ</button>
+            <button onclick="plotMobility()">Подвижность vs Напряжение</button>
+            <button onclick="plotCapacitance()">Ёмкость vs Напряжение</button>
+            <button onclick="plotNoise()">Шум vs Частота</button>
+            <button onclick="plot3DCurrent()">3D график тока</button>
+            <button onclick="plotChargeProfile()">Профиль заряда</button>
+            <button onclick="plotTemperatureDependence()">Температурная зависимость</button>
+            <button onclick="plotPowerConsumption()">График мощности</button>
+            <button onclick="plot3DComparison()">3D сравнение</button>
+            <button onclick="showSimulationStats()">Статистика симуляций</button>
+            <button onclick="compareParameters()">Сравнить параметры</button>
+            <div id="chart"></div>
+          </div>
+        </div>
+        <div id="visualization" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <button onclick="showAdvancedHeatmap()">Тепловая карта</button>
+            <button onclick="animateCurrent()">Анимация тока</button>
+            <button onclick="animatePotential()">Анимация потенциала</button>
+            <button onclick="showDefectMap()">Карта дефектов</button>
+            <button onclick="animateTransient()">Анимация переходных процессов</button>
+            <button onclick="showElectricFieldMap()">Карта электрического поля</button>
+            <div id="heatmap"></div>
+          </div>
+        </div>
+        <div id="export" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <button onclick="saveSimulation()">Сохранить симуляцию</button>
+            <button onclick="toggleComparison()">Сравнить симуляции</button>
+            <button onclick="generateReport()">Сгенерировать отчёт</button>
+          </div>
+          <div class="button-group">
+            <button onclick="exportData()">Экспорт CSV</button>
+            <button onclick="exportGDSII()">Экспорт GDSII</button>
+            <button onclick="exportPDF()">Экспорт PDF</button>
+            <button onclick="exportJSON()">Экспорт JSON</button>
+            <button onclick="exportSPICE()">Экспорт SPICE</button>
+            <button onclick="exportSVG()">Экспорт SVG</button>
+            <button onclick="exportMATLAB()">Экспорт MATLAB</button>
+            <button onclick="exportHeatmap()">Экспорт тепловой карты</button>
+            <button onclick="exportTopology()">Экспорт топологии</button>
+          </div>
+        </div>
+        <div id="examples" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-1" for="example">Выберите пример:</label>
+            <select id="example">
+              <option value="graphene">Графеновый FET</option>
+              <option value="mos2">MoS₂ FET</option>
+              <option value="bn">h-BN Диэлектрик</option>
+              <option value="wse2">WSe₂ FET</option>
+              <option value="silicene">Силицен FET</option>
+              <option value="mxene">MXene FET</option>
+            </select>
+            <button onclick="loadExample()">Загрузить пример</button>
+          </div>
+        </div>
+        <div id="settings" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <label class="block text-sm font-medium mb-1" for="gridSize">Размер сетки (px):</label>
+            <input id="gridSize" type="number" value="10" />
+            <label class="block text-sm font-medium mb-1" for="zoom">Зум (%):</label>
+            <input id="zoom" type="number" value="100" />
+            <button onclick="applySettings()">Применить</button>
+          </div>
+        </div>
+        <div id="logs" class="tab-content" role="tabpanel">
+          <div class="button-group">
+            <button onclick="clearLogs()">Очистить логи</button>
+            <div id="logOutput" class="text-sm mt-2"></div>
+          </div>
+        </div>
+        <div id="error" class="text-red-500 mt-2 hidden" role="alert"></div>
+      </div>
+    </div>
+    <div class="guide-section mx-auto">
+      <h2 class="text-xl font-semibold mb-3">Руководство и подсказки</h2>
+      <div class="accordion">
+        <div class="accordion-header" onclick="toggleAccordion(this)">Основы</div>
+        <div class="accordion-content">
+          <p class="text-sm mb-2">1. Перетаскивайте компоненты пальцем/мышкой.</p>
+          <p class="text-sm mb-2">2. Используйте Undo/Redo (Ctrl+Z/Y).</p>
+          <p class="text-sm mb-2">3. Щёлкните ПКМ для контекстного меню.</p>
+        </div>
+        <div class="accordion-header" onclick="toggleAccordion(this)">Симуляции</div>
+        <div class="accordion-content">
+          <p class="text-sm mb-2">4. Настройте параметры и запустите симуляцию (Ctrl+R).</p>
+          <p class="text-sm mb-2">5. Используйте анализ чувствительности и пакетные симуляции.</p>
+          <p class="text-sm mb-2">6. Проверяйте топологию перед симуляцией.</p>
+        </div>
+        <div class="accordion-header" onclick="toggleAccordion(this)">Визуализация</div>
+        <div class="accordion-content">
+          <p class="text-sm mb-2">7. Используйте тепловые карты с градиентами.</p>
+          <p class="text-sm mb-2">8. Анимируйте потенциал и переходные процессы.</p>
+          <p class="text-sm mb-2">9. Просматривайте 3D графики.</p>
+        </div>
+        <div class="accordion-header" onclick="toggleAccordion(this)">Экспорт</div>
+        <div class="accordion-content">
+          <p class="text-sm mb-2">10. Экспортируйте в SPICE, SVG, MATLAB.</p>
+          <p class="text-sm mb-2">11. Генерируйте отчёты и сравнивайте параметры.</p>
+        </div>
+      </div>
+    </div>
+    <div id="comparison" class="comparison-panel mx-auto">
+      <h2 class="text-xl font-semibold mb-3">Сравнение симуляций</h2>
+      <button onclick="toggleComparison()" class="bg-[#ff3333] text-[#0a0f1c] py-1 px-3 rounded mb-3">Закрыть</button>
+      <div id="comparisonOutput"></div>
+    </div>
+    <div id="logs" class="logs-panel mx-auto">
+      <h2 class="text-xl font-semibold mb-3">Логи</h2>
+      <button onclick="toggleLogs()" class="bg-[#ff3333] text-[#0a0f1c] py-1 px-3 rounded mb-3">Закрыть</button>
+      <div id="logsOutput"></div>
+    </div>
+  </div>
+  <div id="contextMenu" class="context-menu">
+    <div onclick="deleteComponent()">Удалить</div>
+    <div onclick="duplicateComponent()">Дублировать</div>
+    <div onclick="editComponent()">Редактировать</div>
+  </div>
+  <script>
+    console.log("Script initializing...");
+
+    // State Management
+    const state = {
+      components: [],
+      connections: [],
+      simulations: [],
+      history: [],
+      historyIndex: -1,
+      dragging: null,
+      selectedComponent: null,
+      gridSize: 10,
+      zoom: 1,
+      panX: 0,
+      panY: 0,
+      logs: []
+    };
+
+    // Material Properties
+    const materialProperties = {
+      "Graphene": { color: "#00ff88", thickness: 0.7, dielectric: 4.0, bandgap: 0 },
+      "MoS2": { color: "#33ccff", thickness: 0.65, dielectric: 4.5, bandgap: 1.8 },
+      "BN": { color: "#bb33ff", thickness: 1.0, dielectric: 3.5, bandgap: 5.9 },
+      "WSe2": { color: "#ffcc00", thickness: 0.7, dielectric: 4.2, bandgap: 1.2 },
+      "BlackPhosphorus": { color: "#ff3333", thickness: 0.6, dielectric: 4.1, bandgap: 0.3 },
+      "Graphite": { color: "#00cc99", thickness: 0.8, dielectric: 4.0, bandgap: 0.1 },
+      "Silicene": { color: "#66ffcc", thickness: 0.5, dielectric: 3.8, bandgap: 0.1 },
+      "Stanene": { color: "#cc66ff", thickness: 0.5, dielectric: 3.7, bandgap: 0.3 },
+      "Phosphorene": { color: "#ff66cc", thickness: 0.6, dielectric: 4.0, bandgap: 1.0 },
+      "MoSe2": { color: "#33ff99", thickness: 0.65, dielectric: 4.4, bandgap: 1.5 },
+      "WS2": { color: "#ccff33", thickness: 0.65, dielectric: 4.3, bandgap: 1.3 },
+      "BluePhosphorus": { color: "#3399ff", thickness: 0.6, dielectric: 4.0, bandgap: 1.2 },
+      "CarbonNanotubes": { color: "#ff9933", thickness: 0.4, dielectric: 4.5, bandgap: 0.5 },
+      "MXene": { color: "#99ccff", thickness: 0.8, dielectric: 4.6, bandgap: 0.2 }
+    };
+
+    // Logging
+    function log(message) {
+      try {
+        state.logs.push(`${new Date().toISOString()}: ${message}`);
+        document.getElementById("logOutput").innerHTML = state.logs.join("<br>");
+        document.getElementById("logsOutput").innerHTML = state.logs.join("<br>");
+        console.log(message);
+      } catch (e) {
+        console.error(`ERROR: Logging failed: ${e}`);
+      }
+    }
+
+    // Canvas Setup
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      log("ERROR: Canvas context not initialized");
+      document.getElementById("error").textContent = "Ошибка инициализации канваса";
+      document.getElementById("error").classList.remove("hidden");
+    }
+
+    function resizeCanvas() {
+      try {
+        canvas.width = canvas.offsetWidth;
+        canvas.height = canvas.offsetHeight;
+        log(`Canvas resized: ${canvas.width}x${canvas.height}`);
+        drawCanvas();
+      } catch (e) {
+        log(`ERROR: Canvas resize failed: ${e}`);
+      }
+    }
+    window.addEventListener("resize", resizeCanvas);
+
+    // Pyodide Setup
+    let pyodideReady = false;
+    async function loadPyodideAndRun() {
+      try {
+        const pyodide = await loadPyodide();
+        await pyodide.loadPackage(["numpy"]);
+        pyodideReady = true;
+        log("Pyodide loaded successfully");
+        document.getElementById("output").innerHTML = "<p>Pyodide готов, можно запускать симуляции!</p>";
+        return pyodide;
+      } catch (e) {
+        log(`ERROR: Pyodide failed to load: ${e}`);
+        document.getElementById("error").textContent = `Ошибка загрузки Pyodide: ${e.message}`;
+        document.getElementById("error").classList.remove("hidden");
+      }
+    }
+    const pyodidePromise = loadPyodideAndRun();
+
+    // Initialize
+    document.addEventListener("DOMContentLoaded", () => {
+      log("DOM loaded, initializing...");
+      resizeCanvas();
+      drawCanvas();
+      document.querySelectorAll("button").forEach(btn => {
+        btn.addEventListener("click", () => log(`Button clicked: ${btn.textContent}`));
+      });
+      document.querySelectorAll(".accordion-header").forEach(header => {
+        header.onclick = toggleAccordion;
+      });
+    });
+
+    // Undo/Redo
+    function saveState() {
+      try {
+        state.history = state.history.slice(0, state.historyIndex + 1);
+        state.history.push(JSON.stringify({ components: state.components, connections: state.connections }));
+        state.historyIndex++;
+        log(`State saved, history length: ${state.history.length}`);
+      } catch (e) {
+        log(`ERROR: Save state failed: ${e}`);
+      }
+    }
+
+    function undo() {
+      try {
+        if (state.historyIndex > 0) {
+          state.historyIndex--;
+          const prevState = JSON.parse(state.history[state.historyIndex]);
+          state.components = prevState.components;
+          state.connections = prevState.connections;
+          drawCanvas();
+          log(`Undo, history index: ${state.historyIndex}`);
+        }
+      } catch (e) {
+        log(`ERROR: Undo failed: ${e}`);
+      }
+    }
+
+    function redo() {
+      try {
+        if (state.historyIndex < state.history.length - 1) {
+          state.historyIndex++;
+          const nextState = JSON.parse(state.history[state.historyIndex]);
+          state.components = nextState.components;
+          state.connections = nextState.connections;
+          drawCanvas();
+          log(`Redo, history index: ${state.historyIndex}`);
+        }
+      } catch (e) {
+        log(`ERROR: Redo failed: ${e}`);
+      }
+    }
+
+    // AutoSave
+    function autoSave() {
+      try {
+        localStorage.setItem("transistorStudioState", JSON.stringify({ components: state.components, connections: state.connections, simulations: state.simulations }));
+        log("State autosaved");
+      } catch (e) {
+        log(`ERROR: Autosave failed: ${e}`);
+      }
+    }
+
+    // Theme Toggle
+    function toggleTheme() {
+      try {
+        document.body.dataset.theme = document.body.dataset.theme === "light" ? "dark" : "light";
+        log(`Theme toggled: ${document.body.dataset.theme}`);
+        drawCanvas();
+      } catch (e) {
+        log(`ERROR: Theme toggle failed: ${e}`);
+      }
+    }
+
+    // Fullscreen
+    function toggleFullscreen() {
+      try {
+        const canvasContainer = document.querySelector(".canvas-container");
+        if (!document.fullscreenElement) {
+          canvasContainer.requestFullscreen();
+          log("Fullscreen enabled");
+        } else {
+          document.exitFullscreen();
+          log("Fullscreen disabled");
+        }
+      } catch (e) {
+        log(`ERROR: Fullscreen toggle failed: ${e}`);
+      }
+    }
+
+    // Tabs
+    function switchTab(tabId) {
+      try {
+        document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach(content => content.classList.remove("active"));
+        document.querySelector(`[onclick="switchTab('${tabId}')"]`).classList.add("active");
+        document.getElementById(tabId).classList.add("active");
+        log(`Tab switched: ${tabId}`);
+      } catch (e) {
+        log(`ERROR: Tab switch failed: ${e}`);
+      }
+    }
+
+    // Accordion
+    function toggleAccordion(header) {
+      try {
+        header.nextElementSibling.classList.toggle("active");
+        log("Accordion toggled");
+      } catch (e) {
+        log(`ERROR: Accordion toggle failed: ${e}`);
+      }
+    }
+
+    // Component Management
+    function addComponent() {
+      try {
+        const type = document.getElementById("component").value;
+        const material = document.getElementById("material").value;
+        const thickness = parseFloat(document.getElementById("thickness").value) || materialProperties[material].thickness;
+        const dielectric = parseFloat(document.getElementById("dielectric").value) || materialProperties[material].dielectric;
+        const bandgap = parseFloat(document.getElementById("bandgap").value) || materialProperties[material].bandgap;
+        let width, height, color;
+        if (type === "2D-Layer") {
+          width = 100; height = 50; color = materialProperties[material].color;
+        } else if (type === "Source" || type === "Drain") {
+          width = height = 40; color = "#33ccff";
+        } else if (type === "Gate") {
+          width = 100; height = 30; color = "#bb33ff";
+        } else if (type === "Connection") {
+          width = height = 10; color = "#00ff88";
+        } else {
+          width = height = 20; color = "#33ccff";
+        }
+        state.components.push({
+          type, x: snapToGrid(50), y: snapToGrid(50), width, height, color,
+          material: type === "2D-Layer" ? material : null, thickness: type === "2D-Layer" ? thickness : null,
+          dielectric: type === "2D-Layer" ? dielectric : null, bandgap: type === "2D-Layer" ? bandgap : null
+        });
+        saveState();
+        drawCanvas();
+        log(`Component added: ${type}, ${material}`);
+      } catch (e) {
+        log(`ERROR: Add component failed: ${e}`);
+      }
+    }
+
+    function autoAssembleTransistor() {
+      try {
+        state.components = [
+          { type: "2D-Layer", x: 50, y: 50, width: 100, height: 50, color: materialProperties["Graphene"].color, material: "Graphene", thickness: 0.7, dielectric: 4.0, bandgap: 0 },
+          { type: "Source", x: 20, y: 80, width: 40, height: 40, color: "#33ccff" },
+          { type: "Drain", x: 140, y: 80, width: 40, height: 40, color: "#33ccff" },
+          { type: "Gate", x: 50, y: 20, width: 100, height: 30, color: "#bb33ff" },
+          { type: "Contact", x: 30, y: 90, width: 20, height: 20, color: "#33ccff" }
+        ];
+        state.connections = [
+          { startX: 60, startY: 80, endX: 140, endY: 80, color: "#00ff88" }
+        ];
+        saveState();
+        drawCanvas();
+        log("Transistor auto-assembled");
+      } catch (e) {
+        log(`ERROR: Auto assemble transistor failed: ${e}`);
+      }
+    }
+
+    // Snap to Grid
+    function snapToGrid(value) {
+      try {
+        return Math.round(value / state.gridSize) * state.gridSize;
+      } catch (e) {
+        log(`ERROR: Snap to grid failed: ${e}`);
+        return value;
+      }
+    }
+
+    // Canvas Drawing
+    function drawCanvas() {
+      try {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.scale(state.zoom, state.zoom);
+        ctx.translate(state.panX, state.panY);
+        ctx.fillStyle = "#0a0f1c";
+        ctx.fillRect(-state.panX / state.zoom, -state.panY / state.zoom, canvas.width / state.zoom, canvas.height / state.zoom);
+
+        // Draw Grid
+        ctx.strokeStyle = "#00ff88";
+        ctx.lineWidth = 0.5 / state.zoom;
+        for (let x = -state.panX / state.zoom; x <= canvas.width / state.zoom - state.panX / state.zoom; x += state.gridSize) {
+          ctx.beginPath();
+          ctx.moveTo(x, -state.panY / state.zoom);
+          ctx.lineTo(x, canvas.height / state.zoom - state.panY / state.zoom);
+          ctx.stroke();
+        }
+        for (let y = -state.panY / state.zoom; y <= canvas.height / state.zoom - state.panY / state.zoom; y += state.gridSize) {
+          ctx.beginPath();
+          ctx.moveTo(-state.panX / state.zoom, y);
+          ctx.lineTo(canvas.width / state.zoom - state.panX / state.zoom, y);
+          ctx.stroke();
+        }
+
+        // Draw Components
+        state.components.forEach(comp => {
+          ctx.fillStyle = comp.color;
+          ctx.fillRect(comp.x, comp.y, comp.width, comp.height);
+          ctx.strokeStyle = "#00ff88";
+          ctx.lineWidth = 1 / state.zoom;
+          ctx.strokeRect(comp.x, comp.y, comp.width, comp.height);
+          ctx.fillStyle = "#0a0f1c";
+          ctx.font = `${14 / state.zoom}px 'Fira Code'`;
+          ctx.fillText(`${comp.type}${comp.material ? ` (${comp.material})` : ""}`, comp.x + 10 / state.zoom, comp.y + 20 / state.zoom);
+        });
+
+        // Draw Connections
+        state.connections.forEach(conn => {
+          ctx.strokeStyle = conn.color || "#00ff88";
+          ctx.lineWidth = 2 / state.zoom;
+          ctx.beginPath();
+          ctx.moveTo(conn.startX, conn.startY);
+          ctx.lineTo(conn.endX, conn.endY);
+          ctx.stroke();
+        });
+
+        ctx.restore();
+        log(`Canvas drawn, components: ${state.components.length}, connections: ${state.connections.length}`);
+      } catch (e) {
+        log(`ERROR: Draw canvas failed: ${e}`);
+        document.getElementById("error").textContent = `Ошибка отрисовки канваса: ${e.message}`;
+        document.getElementById("error").classList.remove("hidden");
+      }
+    }
+
+    // Dragging
+    canvas.addEventListener("mousedown", e => {
+      try {
+        const rect = canvas.getBoundingClientRect();
+        const x = snapToGrid((e.clientX - rect.left) / state.zoom - state.panX);
+        const y = snapToGrid((e.clientY - rect.top) / state.zoom - state.panY);
+        state.dragging = state.components.find(comp => 
+          x >= comp.x && x <= comp.x + comp.width && y >= comp.y && y <= comp.y + comp.height
+        );
+        if (state.dragging) state.selectedComponent = state.dragging;
+        log(`Mouse down, dragging: ${state.dragging ? state.dragging.type : "none"}`);
+      } catch (e) {
+        log(`ERROR: Mousedown failed: ${e}`);
+      }
+    });
+
+    canvas.addEventListener("mousemove", e => {
+      try {
+        if (state.dragging) {
+          const rect = canvas.getBoundingClientRect();
+          const x = snapToGrid((e.clientX - rect.left) / state.zoom - state.panX);
+          const y = snapToGrid((e.clientY - rect.top) / state.zoom - state.panY);
+          state.dragging.x = x - state.dragging.width / 2;
+          state.dragging.y = y - state.dragging.height / 2;
+          drawCanvas();
+          log(`Dragging: ${state.dragging.x}, ${state.dragging.y}`);
+        }
+      } catch (e) {
+        log(`ERROR: Mousemove failed: ${e}`);
+      }
+    });
+
+    canvas.addEventListener("mouseup", () => {
+      try {
+        if (state.dragging) saveState();
+        state.dragging = null;
+        log("Mouse up");
+      } catch (e) {
+        log(`ERROR: Mouseup failed: ${e}`);
+      }
+    });
+
+    // Zoom and Pan
+    canvas.addEventListener("wheel", e => {
+      try {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / state.zoom - state.panX;
+        const y = (e.clientY - rect.top) / state.zoom - state.panY;
+        if (e.deltaY < 0) state.zoom *= 1.1;
+        else state.zoom /= 1.1;
+        state.zoom = Math.max(0.5, Math.min(state.zoom, 2));
+        state.panX = (e.clientX - rect.left) / state.zoom - x;
+        state.panY = (e.clientY - rect.top) / state.zoom - y;
+        drawCanvas();
+        log(`Zoom: ${state.zoom}, Pan: ${state.panX}, ${state.panY}`);
+      } catch (e) {
+        log(`ERROR: Wheel event failed: ${e}`);
+      }
+    });
+
+    let isPanning = false;
+    canvas.addEventListener("mousedown", e => {
+      try {
+        if (e.button === 2) {
+          isPanning = true;
+          log("Panning started");
+        }
+      } catch (e) {
+        log(`ERROR: Panning mousedown failed: ${e}`);
+      }
+    });
+
+    canvas.addEventListener("mousemove", e => {
+      try {
+        if (isPanning) {
+          state.panX += e.movementX / state.zoom;
+          state.panY += e.movementY / state.zoom;
+          drawCanvas();
+          log(`Panning: ${state.panX}, ${state.panY}`);
+        }
+      } catch (e) {
+        log(`ERROR: Panning mousemove failed: ${e}`);
+      }
+    });
+
+    canvas.addEventListener("mouseup", e => {
+      try {
+        if (e.button === 2) isPanning = false;
+        log("Panning stopped");
+      } catch (e) {
+        log(`ERROR: Panning mouseup failed: ${e}`);
+      }
+    });
+
+    // Toolbar Drag and Drop
+    document.querySelectorAll(".draggable-item").forEach(item => {
+      item.addEventListener("dragstart", e => {
+        try {
+          e.dataTransfer.setData("type", item.dataset.type);
+          e.dataTransfer.setData("material", item.dataset.material || "");
+          log(`Drag start: ${item.dataset.type}`);
+        } catch (e) {
+          log(`ERROR: Drag start failed: ${e}`);
+        }
+      });
+    });
+
+    canvas.addEventListener("dragover", e => e.preventDefault());
+
+    canvas.addEventListener("drop", e => {
+      try {
+        e.preventDefault();
+        const type = e.dataTransfer.getData("type");
+        const material = e.dataTransfer.getData("material");
+        const rect = canvas.getBoundingClientRect();
+        const x = snapToGrid((e.clientX - rect.left) / state.zoom - state.panX - 50);
+        const y = snapToGrid((e.clientY - rect.top) / state.zoom - state.panY - 25);
+        let width, height, color;
+        if (type === "2D-Layer") {
+          width = 100; height = 50; color = materialProperties[material].color;
+        } else if (type === "Source" || type === "Drain") {
+          width = height = 40; color = "#33ccff";
+        } else if (type === "Gate") {
+          width = 100; height = 30; color = "#bb33ff";
+        } else if (type === "Connection") {
+          width = height = 10; color = "#00ff88";
+        } else {
+          width = height = 20; color = "#33ccff";
+        }
+        state.components.push({
+          type, x, y, width, height, color,
+          material: type === "2D-Layer" ? material : null,
+          thickness: type === "2D-Layer" ? parseFloat(document.getElementById("thickness").value) || materialProperties[material].thickness : null,
+          dielectric: type === "2D-Layer" ? parseFloat(document.getElementById("dielectric").value) || materialProperties[material].dielectric : null,
+          bandgap: type === "2D-Layer" ? parseFloat(document.getElementById("bandgap").value) || materialProperties[material].bandgap : null
+        });
+        saveState();
+        drawCanvas();
+        log(`Dropped component: ${type}, ${material}, ${x}, ${y}`);
+      } catch (e) {
+        log(`ERROR: Drop failed: ${e}`);
+      }
+    });
+
+    // Context Menu
+    canvas.addEventListener("contextmenu", e => {
+      try {
+        e.preventDefault();
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / state.zoom - state.panX;
+        const y = (e.clientY - rect.top) / state.zoom - state.panY;
+        state.selectedComponent = state.components.find(comp => 
+          x >= comp.x && x <= comp.x + comp.width && y >= comp.y && y <= comp.y + comp.height
+        );
+        if (state.selectedComponent) {
+          const menu = document.getElementById("contextMenu");
+          menu.style.top = `${e.clientY}px`;
+          menu.style.left = `${e.clientX}px`;
+          menu.style.display = "block";
+          log("Context menu opened");
+        }
+      } catch (e) {
+        log(`ERROR: Context menu failed: ${e}`);
+      }
+    });
+
+    document.addEventListener("click", () => {
+      try {
+        document.getElementById("contextMenu").style.display = "none";
+        log("Context menu closed");
+      } catch (e) {
+        log(`ERROR: Context menu close failed: ${e}`);
+      }
+    });
+
+    function deleteComponent() {
+      try {
+        if (state.selectedComponent) {
+          state.components = state.components.filter(comp => comp !== state.selectedComponent);
+          state.selectedComponent = null;
+          saveState();
+          drawCanvas();
+          log("Component deleted");
+        }
+      } catch (e) {
+        log(`ERROR: Delete component failed: ${e}`);
+      }
+    }
+
+    function duplicateComponent() {
+      try {
+        if (state.selectedComponent) {
+          const comp = { ...state.selectedComponent, x: state.selectedComponent.x + state.gridSize, y: state.selectedComponent.y + state.gridSize };
+          state.components.push(comp);
+          saveState();
+          drawCanvas();
+          log("Component duplicated");
+        }
+      } catch (e) {
+        log(`ERROR: Duplicate component failed: ${e}`);
+      }
+    }
+
+    function editComponent() {
+      try {
+        if (state.selectedComponent && state.selectedComponent.type === "2D-Layer") {
+          document.getElementById("material").value = state.selectedComponent.material || "Graphene";
+          document.getElementById("thickness").value = state.selectedComponent.thickness || materialProperties[state.selectedComponent.material].thickness;
+          document.getElementById("dielectric").value = state.selectedComponent.dielectric || materialProperties[state.selectedComponent.material].dielectric;
+          document.getElementById("bandgap").value = state.selectedComponent.bandgap || materialProperties[state.selectedComponent.material].bandgap;
+          log("Component edited");
+        }
+      } catch (e) {
+        log(`ERROR: Edit component failed: ${e}`);
+      }
+    }
+
+    // Connections
+    let connectionStart = null;
+    canvas.addEventListener("click", e => {
+      try {
+        if (document.getElementById("component").value === "Connection") {
+          const rect = canvas.getBoundingClientRect();
+          const x = snapToGrid((e.clientX - rect.left) / state.zoom - state.panX);
+          const y = snapToGrid((e.clientY - rect.top) / state.zoom - state.panY);
+          if (!connectionStart) {
+            connectionStart = { x, y };
+            log(`Connection start: ${x}, ${y}`);
+          } else {
+            state.connections.push({ startX: connectionStart.x, startY: connectionStart.y, endX: x, endY: y, color: "#00ff88" });
+            connectionStart = null;
+            saveState();
+            drawCanvas();
+            log("Connection added");
+          }
+        }
+      } catch (e) {
+        log(`ERROR: Connection click failed: ${e}`);
+      }
+    });
+
+    // Parameter Preview
+    function previewParameters() {
+      try {
+        const mobility = parseFloat(document.getElementById("mobility").value) || 1000;
+        const gateVoltage = parseFloat(document.getElementById("gateVoltage").value) || 1.5;
+        const bandgap = parseFloat(document.getElementById("bandgap").value) || 0;
+        document.getElementById("preview").textContent = `Оценка тока: ${(mobility * gateVoltage / (1 + bandgap)).toFixed(2)} мкА`;
+        log(`Parameters previewed: mobility=${mobility}, gateVoltage=${gateVoltage}, bandgap=${bandgap}`);
+      } catch (e) {
+        log(`ERROR: Preview parameters failed: ${e}`);
+      }
+    }
+
+    document.getElementById("mobility").addEventListener("input", previewParameters);
+    document.getElementById("gateVoltage").addEventListener("input", previewParameters);
+    document.getElementById("bandgap").addEventListener("input", previewParameters);
+
+    // Hotkeys
+    document.addEventListener("keydown", e => {
+      try {
+        if (e.ctrlKey && e.key === "z") {
+          e.preventDefault();
+          undo();
+          log("Hotkey: Undo");
+        } else if (e.ctrlKey && e.key === "y") {
+          e.preventDefault();
+          redo();
+          log("Hotkey: Redo");
+        } else if (e.ctrlKey && e.key === "r") {
+          e.preventDefault();
+          runSimulation();
+          log("Hotkey: Run simulation");
+        }
+      } catch (e) {
+        log(`ERROR: Hotkey failed: ${e}`);
+      }
+    });
+
+    // Simulation
+    async function runSimulation() {
+      const loadingBar = document.getElementById("loadingBar");
+      const errorDiv = document.getElementById("error");
+      const outputDiv = document.getElementById("output");
+      errorDiv.classList.add("hidden");
+      loadingBar.style.display = "block";
+
+      if (!pyodideReady) {
+        errorDiv.textContent = "Pyodide ещё не загрузился! Подождите несколько секунд.";
+        errorDiv.classList.remove("hidden");
+        loadingBar.style.display = "none";
+        log("ERROR: Pyodide not ready");
+        return;
+      }
+
+      if (!state.components.some(c => c.type === "2D-Layer")) {
+        errorDiv.textContent = "Добавьте хотя бы один 2D-слой!";
+        errorDiv.classList.remove("hidden");
+        loadingBar.style.display = "none";
+        log("ERROR: No 2D-Layer component");
+        return;
+      }
+
+      outputDiv.innerHTML = "<p>Симуляция выполняется...</p>";
+      log("Running simulation");
+
+      try {
+        const pyodide = await pyodidePromise;
+        const material = document.getElementById("material").value;
+        const thickness = parseFloat(document.getElementById("thickness").value) || materialProperties[material].thickness;
+        const mobility = parseFloat(document.getElementById("mobility").value) || 1000;
+        const gateVoltage = parseFloat(document.getElementById("gateVoltage").value) || 1.5;
+        const doping = parseFloat(document.getElementById("doping").value) || 1e12;
+        const temperature = parseFloat(document.getElementById("temperature").value) || 300;
+
+        const pythonCode = `
+import numpy as np
+voltages = np.linspace(0, ${gateVoltage}, 100)
+currents = voltages * ${mobility} * ${thickness} * ${doping / 1e12} / (${temperature / 300})
+output = f"Результат симуляции: макс. ток = {max(currents):.2f} мкА"
+output
+        `;
+        log(`Simulation parameters: material=${material}, thickness=${thickness}, mobility=${mobility}, gateVoltage=${gateVoltage}, doping=${doping}, temperature=${temperature}`);
+        const result = await pyodide.runPythonAsync(pythonCode);
+
+        const currents = Array(100).fill(0).map((_, i) => {
+          const voltage = i * gateVoltage / 100;
+          return voltage * mobility * thickness * (doping / 1e12) / (temperature / 300);
+        });
+
+        state.simulations.push({ result, voltages: Array(100).fill(0).map((_, i) => i * gateVoltage / 100), currents });
+        outputDiv.innerHTML = `<p>${result}</p>`;
+        loadingBar.style.display = "none";
+        log(`Simulation result: ${result}`);
+      } catch (e) {
+        errorDiv.textContent = `Ошибка симуляции: ${e.message}`;
+        errorDiv.classList.remove("hidden");
+        outputDiv.innerHTML = "";
+        loadingBar.style.display = "none";
+        log(`ERROR: Simulation error: ${e}`);
+      }
+    }
+
+    async function optimizeParameters() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        let bestCurrent = 0;
+        let bestMobility = parseFloat(document.getElementById("mobility").value) || 1000;
+        for (let m = bestMobility * 0.8; m <= bestMobility * 1.2; m += bestMobility * 0.1) {
+          document.getElementById("mobility").value = m;
+          await runSimulation();
+          const lastSim = state.simulations[state.simulations.length - 1];
+          const maxCurrent = Math.max(...lastSim.currents);
+          if (maxCurrent > bestCurrent) {
+            bestCurrent = maxCurrent;
+            bestMobility = m;
+          }
+        }
+        document.getElementById("mobility").value = bestMobility;
+        document.getElementById("output").innerHTML = `<p>Оптимальная подвижность: ${bestMobility.toFixed(0)} см²/В·с, ток: ${bestCurrent.toFixed(2)} мкА</p>`;
+        log(`Optimization completed: best mobility=${bestMobility}, current=${bestCurrent}`);
+      } catch (e) {
+        log(`ERROR: Optimization failed: ${e}`);
+      }
+    }
+
+    async function multiObjectiveOptimization() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        let results = [];
+        for (let m = 500; m <= 1500; m += 250) {
+          for (let v = 1.0; v <= 2.0; v += 0.5) {
+            document.getElementById("mobility").value = m;
+            document.getElementById("gateVoltage").value = v;
+            await runSimulation();
+            const lastSim = state.simulations[state.simulations.length - 1];
+            results.push({
+              mobility: m,
+              gateVoltage: v,
+              maxCurrent: Math.max(...lastSim.currents)
+            });
+          }
+        }
+        document.getElementById("output").innerHTML = results.map(r => `<p>Подвижность=${r.mobility}, Vg=${r.gateVoltage} В: ток=${r.maxCurrent.toFixed(2)} мкА</p>`).join("");
+        log(`Multi-objective optimization completed: ${results.length} iterations`);
+      } catch (e) {
+        log(`ERROR: Multi-objective optimization failed: ${e}`);
+      }
+    }
+
+    async function runSensitivityAnalysis() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        const mobility = parseFloat(document.getElementById("mobility").value) || 1000;
+        let results = [];
+        for (let m = mobility * 0.8; m <= mobility * 1.2; m += mobility * 0.1) {
+          const pythonCode = `
+import numpy as np
+voltages = np.linspace(0, ${parseFloat(document.getElementById("gateVoltage").value) || 1.5}, 100)
+currents = voltages * ${m} * ${parseFloat(document.getElementById("thickness").value) || 0.7} * ${parseFloat(document.getElementById("doping").value) || 1e12} / 1e12
+max(currents)
+          `;
+          const maxCurrent = await pyodide.runPythonAsync(pythonCode);
+          results.push({ mobility: m, maxCurrent });
+        }
+        document.getElementById("output").innerHTML = results.map(r => `<p>Подвижность=${r.mobility.toFixed(0)}: макс. ток=${r.maxCurrent.toFixed(2)} мкА</p>`).join("");
+        log(`Sensitivity analysis completed: ${results.length} iterations`);
+      } catch (e) {
+        log(`ERROR: Sensitivity analysis failed: ${e}`);
+      }
+    }
+
+    async function runThermalSimulation() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        let results = [];
+        for (let temp = 250; temp <= 350; temp += 25) {
+          document.getElementById("temperature").value = temp;
+          await runSimulation();
+          const lastSim = state.simulations[state.simulations.length - 1];
+          results.push({ temperature: temp, maxCurrent: Math.max(...lastSim.currents) });
+        }
+        document.getElementById("output").innerHTML = results.map(r => `<p>Температура=${r.temperature}K: макс. ток=${r.maxCurrent.toFixed(2)} мкА</p>`).join("");
+        log(`Thermal simulation completed: ${results.length} iterations`);
+      } catch (e) {
+        log(`ERROR: Thermal simulation failed: ${e}`);
+      }
+    }
+
+    async function runReliabilityAnalysis() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        const defects = parseFloat(document.getElementById("defects").value) || 1e10;
+        let results = [];
+        for (let d = defects * 0.5; d <= defects * 2; d += defects * 0.5) {
+          const pythonCode = `
+import numpy as np
+currents = np.linspace(0, ${parseFloat(document.getElementById("gateVoltage").value) || 1.5}, 100) * ${parseFloat(document.getElementById("mobility").value) || 1000} / (1 + ${d / 1e10})
+reliability = 1 / (1 + ${d / 1e10})
+[max(currents), reliability]
+          `;
+          const [maxCurrent, reliability] = await pyodide.runPythonAsync(pythonCode);
+          results.push({ defects: d, maxCurrent, reliability });
+        }
+        document.getElementById("output").innerHTML = results.map(r => `<p>Дефекты=${r.defects.toExponential(2)}: ток=${r.maxCurrent.toFixed(2)} мкА, надёжность=${r.reliability.toFixed(2)}</p>`).join("");
+        log(`Reliability analysis completed: ${results.length} iterations`);
+      } catch (e) {
+        log(`ERROR: Reliability analysis failed: ${e}`);
+      }
+    }
+
+    async function runFlickerNoiseSimulation() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        const pythonCode = `
+import numpy as np
+frequencies = np.logspace(0, 4, 100)
+noise = 1 / frequencies * ${parseFloat(document.getElementById("mobility").value) || 1000} * 0.01
+np.mean(noise)
+        `;
+        const meanNoise = await pyodide.runPythonAsync(pythonCode);
+        document.getElementById("output").innerHTML = `<p>Средний 1/f шум: ${meanNoise.toFixed(2)} мкА</p>`;
+        log("Flicker noise simulation completed");
+      } catch (e) {
+        log(`ERROR: Flicker noise simulation failed: ${e}`);
+      }
+    }
+
+    async function runDefectSimulation() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        const defects = parseFloat(document.getElementById("defects").value) || 1e10;
+        const pythonCode = `
+import numpy as np
+defect_density = ${defects} / 1e10
+impact = 1 / (1 + defect_density)
+impact
+        `;
+        const impact = await pyodide.runPythonAsync(pythonCode);
+        document.getElementById("output").innerHTML = `<p>Влияние дефектов: ${impact.toFixed(2)}</p>`;
+        log("Defect simulation completed");
+      } catch (e) {
+        log(`ERROR: Defect simulation failed: ${e}`);
+      }
+    }
+
+    async function runMaterialBatchSimulation() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        const materials = ["Graphene", "MoS2", "BN", "WSe2", "Silicene", "MXene"];
+        let results = [];
+        for (const material of materials) {
+          document.getElementById("material").value = material;
+          document.getElementById("thickness").value = materialProperties[material].thickness;
+          document.getElementById("dielectric").value = materialProperties[material].dielectric;
+          document.getElementById("bandgap").value = materialProperties[material].bandgap;
+          await runSimulation();
+          const lastSim = state.simulations[state.simulations.length - 1];
+          results.push({ material, maxCurrent: Math.max(...lastSim.currents) });
+        }
+        document.getElementById("output").innerHTML = results.map(r => `<p>${r.material}: макс. ток=${r.maxCurrent.toFixed(2)} мкА</p>`).join("");
+        log(`Material batch simulation completed: ${results.length} materials`);
+      } catch (e) {
+        log(`ERROR: Material batch simulation failed: ${e}`);
+      }
+    }
+
+    async function runTransientSimulation() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        const pythonCode = `
+import numpy as np
+time = np.linspace(0, 1e-6, 100)
+current = ${parseFloat(document.getElementById("mobility").value) || 1000} * (1 - np.exp(-time / 1e-7))
+max(current)
+        `;
+        const maxCurrent = await pyodide.runPythonAsync(pythonCode);
+        document.getElementById("output").innerHTML = `<p>Макс. ток переходного процесса: ${maxCurrent.toFixed(2)} мкА</p>`;
+        log("Transient simulation completed");
+      } catch (e) {
+        log(`ERROR: Transient simulation failed: ${e}`);
+      }
+    }
+
+    async function runPowerAnalysis() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        const gateVoltage = parseFloat(document.getElementById("gateVoltage").value) || 1.5;
+        const pythonCode = `
+import numpy as np
+voltages = np.linspace(0, ${gateVoltage}, 100)
+currents = voltages * ${parseFloat(document.getElementById("mobility").value) || 1000} * ${parseFloat(document.getElementById("thickness").value) || 0.7}
+power = voltages * currents
+max(power)
+        `;
+        const maxPower = await pyodide.runPythonAsync(pythonCode);
+        document.getElementById("output").innerHTML = `<p>Макс. мощность: ${maxPower.toFixed(2)} нВт</p>`;
+        log("Power analysis completed");
+      } catch (e) {
+        log(`ERROR: Power analysis failed: ${e}`);
+      }
+    }
+
+    async function runQuantumSimulation() {
+      try {
+        const errorDiv = document.getElementById("error");
+        errorDiv.classList.add("hidden");
+
+        if (!pyodideReady) {
+          errorDiv.textContent = "Pyodide ещё не загрузился!";
+          errorDiv.classList.remove("hidden");
+          log("ERROR: Pyodide not ready");
+          return;
+        }
+
+        const pyodide = await pyodidePromise;
+        const bandgap = parseFloat(document.getElementById("bandgap").value) || 0;
+        const pythonCode = `
+import numpy as np
+energy_levels = np.linspace(-${bandgap}, ${bandgap}, 100)
+dos = 1 / (1 + np.exp(energy_levels / 0.025))
+np.mean(dos)
+        `;
+        const meanDOS = await pyodide.runPythonAsync(pythonCode);
+        document.getElementById("output").innerHTML = `<p>Средняя плотность состояний: ${meanDOS.toFixed(2)}</p>`;
+        log("Quantum simulation completed");
+      } catch (e) {
+        log(`ERROR: Quantum simulation failed: ${e}`);
+      }
+    }
+
+    function checkTopology() {
+      try {
+        const hasLayer = state.components.some(c => c.type === "2D-Layer");
+        const hasSource = state.components.some(c => c.type === "Source");
+        const hasDrain = state.components.some(c => c.type === "Drain");
+        const hasGate = state.components.some(c => c.type === "Gate");
+        let message = "";
+        if (!hasLayer) message += "Отсутствует 2D-слой. ";
+        if (!hasSource) message += "Отсутствует исток. ";
+        if (!hasDrain) message += "Отсутствует сток. ";
+        if (!hasGate) message += "Отсутствует затвор. ";
+        if (message) {
+          document.getElementById("error").textContent = `Ошибка топологии: ${message}`;
+          document.getElementById("error").classList.remove("hidden");
+          log(`Topology check failed: ${message}`);
+        } else {
+          document.getElementById("output").innerHTML = "<p>Топология корректна!</p>";
+          log("Topology check passed");
+        }
+      } catch (e) {
+        log(`ERROR: Topology check failed: ${e}`);
+      }
+    }
+
+    // Visualization
+    function plotIVCurve() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for IV curve");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        Plotly.newPlot("chart", [{
+          x: sim.voltages,
+          y: sim.currents,
+          mode: "lines",
+          line: { color: "#00ff88" }
+        }], {
+          title: "ВАХ (I-V)",
+          xaxis: { title: "Напряжение (В)" },
+          yaxis: { title: "Ток (мкА)" },
+          paper_bgcolor: "#0a0f1c",
+          plot_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("IV curve plotted");
+      } catch (e) {
+        log(`ERROR: IV curve plot failed: ${e}`);
+      }
+    }
+
+    function plotMobility() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for mobility plot");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const mobilities = sim.voltages.map(v => (sim.currents[sim.voltages.indexOf(v)] / v) * 1000 || 0);
+        Plotly.newPlot("chart", [{
+          x: sim.voltages,
+          y: mobilities,
+          mode: "lines",
+          line: { color: "#33ccff" }
+        }], {
+          title: "Подвижность vs Напряжение",
+          xaxis: { title: "Напряжение (В)" },
+          yaxis: { title: "Подвижность (см²/В·с)" },
+          paper_bgcolor: "#0a0f1c",
+          plot_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("Mobility plot completed");
+      } catch (e) {
+        log(`ERROR: Mobility plot failed: ${e}`);
+      }
+    }
+
+    function plotCapacitance() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for capacitance plot");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const capacitances = sim.voltages.map(v => 1 / (1 + v * 0.1));
+        Plotly.newPlot("chart", [{
+          x: sim.voltages,
+          y: capacitances,
+          mode: "lines",
+          line: { color: "#bb33ff" }
+        }], {
+          title: "Ёмкость vs Напряжение",
+          xaxis: { title: "Напряжение (В)" },
+          yaxis: { title: "Ёмкость (фФ)" },
+          paper_bgcolor: "#0a0f1c",
+          plot_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("Capacitance plot completed");
+      } catch (e) {
+        log(`ERROR: Capacitance plot failed: ${e}`);
+      }
+    }
+
+    function plotNoise() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for noise plot");
+          return;
+        }
+        const frequencies = Array(100).fill(0).map((_, i) => Math.pow(10, i / 25));
+        const noise = frequencies.map(f => 1 / f * (parseFloat(document.getElementById("mobility").value) || 1000) * 0.01);
+        Plotly.newPlot("chart", [{
+          x: frequencies,
+          y: noise,
+          mode: "lines",
+          line: { color: "#ff3333" }
+        }], {
+          title: "Шум vs Частота",
+          xaxis: { title: "Частота (Гц)", type: "log" },
+          yaxis: { title: "Шум (мкА)" },
+          paper_bgcolor: "#0a0f1c",
+          plot_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("Noise plot completed");
+      } catch (e) {
+        log(`ERROR: Noise plot failed: ${e}`);
+      }
+    }
+
+    function plot3DCurrent() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for 3D current plot");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const x = sim.voltages;
+        const y = Array(10).fill(0).map((_, i) => i * 0.1);
+        const z = y.map(() => sim.currents.map(c => c * (Math.random() * 0.2 + 0.9)));
+        Plotly.newPlot("chart", [{
+          x, y, z,
+          type: "surface",
+          colorscale: "Viridis"
+        }], {
+          title: "3D График тока",
+          scene: {
+            xaxis: { title: "Напряжение (В)" },
+            yaxis: { title: "Толщина (нм)" },
+            zaxis: { title: "Ток (мкА)" }
+          },
+          paper_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("3D current plot completed");
+      } catch (e) {
+        log(`ERROR: 3D current plot failed: ${e}`);
+      }
+    }
+
+    function plotChargeProfile() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for charge profile");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const charges = sim.voltages.map(v => v * (parseFloat(document.getElementById("doping").value) || 1e12) * 1e-12);
+        Plotly.newPlot("chart", [{
+          x: sim.voltages,
+          y: charges,
+          mode: "lines",
+          line: { color: "#33ccff" }
+        }], {
+          title: "Профиль заряда",
+          xaxis: { title: "Напряжение (В)" },
+          yaxis: { title: "Заряд (Кл/см²)" },
+          paper_bgcolor: "#0a0f1c",
+          plot_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("Charge profile plotted");
+      } catch (e) {
+        log(`ERROR: Charge profile plot failed: ${e}`);
+      }
+    }
+
+    function plotTemperatureDependence() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for temperature dependence");
+          return;
+        }
+        const temperatures = Array(100).fill(0).map((_, i) => 250 + i * 1);
+        const currents = temperatures.map(t => state.simulations[state.simulations.length - 1].currents[50] / (t / 300));
+        Plotly.newPlot("chart", [{
+          x: temperatures,
+          y: currents,
+          mode: "lines",
+          line: { color: "#ff3333" }
+        }], {
+          title: "Температурная зависимость",
+          xaxis: { title: "Температура (К)" },
+          yaxis: { title: "Ток (мкА)" },
+          paper_bgcolor: "#0a0f1c",
+          plot_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("Temperature dependence plotted");
+      } catch (e) {
+        log(`ERROR: Temperature dependence plot failed: ${e}`);
+      }
+    }
+
+    function plotPowerConsumption() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for power consumption");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const power = sim.voltages.map((v, i) => v * sim.currents[i]);
+        Plotly.newPlot("chart", [{
+          x: sim.voltages,
+          y: power,
+          mode: "lines",
+          line: { color: "#bb33ff" }
+        }], {
+          title: "Потребляемая мощность",
+          xaxis: { title: "Напряжение (В)" },
+          yaxis: { title: "Мощность (нВт)" },
+          paper_bgcolor: "#0a0f1c",
+          plot_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("Power consumption plotted");
+      } catch (e) {
+        log(`ERROR: Power consumption plot failed: ${e}`);
+      }
+    }
+
+    function plot3DComparison() {
+      try {
+        if (state.simulations.length < 2) {
+          document.getElementById("error").textContent = "Нужно минимум две симуляции для сравнения!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: Not enough simulations for 3D comparison");
+          return;
+        }
+        const sim1 = state.simulations[state.simulations.length - 1];
+        const sim2 = state.simulations[state.simulations.length - 2];
+        Plotly.newPlot("chart", [
+          {
+            x: sim1.voltages,
+            y: sim1.currents,
+            z: Array(sim1.voltages.length).fill(1),
+            type: "scatter3d",
+            mode: "lines",
+            name: "Симуляция 1",
+            line: { color: "#00ff88" }
+          },
+          {
+            x: sim2.voltages,
+            y: sim2.currents,
+            z: Array(sim2.voltages.length).fill(0),
+            type: "scatter3d",
+            mode: "lines",
+            name: "Симуляция 2",
+            line: { color: "#33ccff" }
+          }
+        ], {
+          title: "3D Сравнение симуляций",
+          scene: {
+            xaxis: { title: "Напряжение (В)" },
+            yaxis: { title: "Ток (мкА)" },
+            zaxis: { title: "Симуляция" }
+          },
+          paper_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("3D comparison plotted");
+      } catch (e) {
+        log(`ERROR: 3D comparison plot failed: ${e}`);
+      }
+    }
+
+    function showSimulationStats() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for stats");
+          return;
+        }
+        const maxCurrents = state.simulations.map(sim => Math.max(...sim.currents));
+        const avgCurrent = maxCurrents.reduce((a, b) => a + b, 0) / maxCurrents.length;
+        document.getElementById("output").innerHTML = `
+          <p>Количество симуляций: ${state.simulations.length}</p>
+          <p>Средний максимальный ток: ${avgCurrent.toFixed(2)} мкА</p>
+          <p>Макс. ток: ${Math.max(...maxCurrents).toFixed(2)} мкА</p>
+          <p>Мин. ток: ${Math.min(...maxCurrents).toFixed(2)} мкА</p>
+        `;
+        log("Simulation stats displayed");
+      } catch (e) {
+        log(`ERROR: Simulation stats failed: ${e}`);
+      }
+    }
+
+    function compareParameters() {
+      try {
+        if (state.simulations.length < 2) {
+          document.getElementById("error").textContent = "Нужно минимум две симуляции для сравнения!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: Not enough simulations for parameter comparison");
+          return;
+        }
+        toggleComparison();
+        const sim1 = state.simulations[state.simulations.length - 1];
+        const sim2 = state.simulations[state.simulations.length - 2];
+        document.getElementById("comparisonOutput").innerHTML = `
+          <p>Симуляция 1: Макс. ток = ${Math.max(...sim1.currents).toFixed(2)} мкА</p>
+          <p>Симуляция 2: Макс. ток = ${Math.max(...sim2.currents).toFixed(2)} мкА</p>
+          <p>Разница: ${Math.abs(Math.max(...sim1.currents) - Math.max(...sim2.currents)).toFixed(2)} мкА</p>
+        `;
+        log("Parameter comparison displayed");
+      } catch (e) {
+        log(`ERROR: Parameter comparison failed: ${e}`);
+      }
+    }
+
+    function showAdvancedHeatmap() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for heatmap");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const x = sim.voltages;
+        const y = Array(10).fill(0).map((_, i) => i * 0.1);
+        const z = y.map(() => sim.currents.map(c => c * (Math.random() * 0.2 + 0.9)));
+        Plotly.newPlot("heatmap", [{
+          x, y, z,
+          type: "heatmap",
+          colorscale: "Viridis"
+        }], {
+          title: "Тепловая карта тока",
+          xaxis: { title: "Напряжение (В)" },
+          yaxis: { title: "Толщина (нм)" },
+          paper_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("Advanced heatmap plotted");
+      } catch (e) {
+        log(`ERROR: Advanced heatmap failed: ${e}`);
+      }
+    }
+
+    function animateCurrent() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for current animation");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        let frame = 0;
+        const animate = () => {
+          const data = [{
+            x: sim.voltages.slice(0, frame + 1),
+            y: sim.currents.slice(0, frame + 1),
+            mode: "lines",
+            line: { color: "#00ff88" }
+          }];
+          Plotly.newPlot("chart", data, {
+            title: "Анимация тока",
+            xaxis: { title: "Напряжение (В)" },
+            yaxis: { title: "Ток (мкА)" },
+            paper_bgcolor: "#0a0f1c",
+            plot_bgcolor: "#0a0f1c",
+            font: { color: "#00ff88" }
+          });
+          frame = (frame + 1) % sim.voltages.length;
+          if (frame > 0) setTimeout(animate, 50);
+        };
+        animate();
+        log("Current animation started");
+      } catch (e) {
+        log(`ERROR: Current animation failed: ${e}`);
+      }
+    }
+
+    function animatePotential() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for potential animation");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        let frame = 0;
+        const animate = () => {
+          const potentials = sim.voltages.slice(0, frame + 1).map(v => v * 0.5);
+          Plotly.newPlot("chart", [{
+            x: sim.voltages.slice(0, frame + 1),
+            y: potentials,
+            mode: "lines",
+            line: { color: "#33ccff" }
+          }], {
+            title: "Анимация потенциала",
+            xaxis: { title: "Напряжение (В)" },
+            yaxis: { title: "Потенциал (В)" },
+            paper_bgcolor: "#0a0f1c",
+            plot_bgcolor: "#0a0f1c",
+            font: { color: "#00ff88" }
+          });
+          frame = (frame + 1) % sim.voltages.length;
+          if (frame > 0) setTimeout(animate, 50);
+        };
+        animate();
+        log("Potential animation started");
+      } catch (e) {
+        log(`ERROR: Potential animation failed: ${e}`);
+      }
+    }
+
+    function showDefectMap() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for defect map");
+          return;
+        }
+        const defects = parseFloat(document.getElementById("defects").value) || 1e10;
+        const x = Array(10).fill(0).map((_, i) => i * 0.1);
+        const y = Array(10).fill(0).map((_, i) => i * 0.1);
+        const z = x.map(() => y.map(() => Math.random() * defects / 1e10));
+        Plotly.newPlot("heatmap", [{
+          x, y, z,
+          type: "heatmap",
+          colorscale: "Hot"
+        }], {
+          title: "Карта дефектов",
+          xaxis: { title: "X (нм)" },
+          yaxis: { title: "Y (нм)" },
+          paper_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("Defect map plotted");
+      } catch (e) {
+        log(`ERROR: Defect map failed: ${e}`);
+      }
+    }
+
+    function animateTransient() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for transient animation");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const time = Array(100).fill(0).map((_, i) => i * 1e-6 / 100);
+        let frame = 0;
+        const animate = () => {
+          const current = time.slice(0, frame + 1).map(t => sim.currents[50] * (1 - Math.exp(-t / 1e-7)));
+          Plotly.newPlot("chart", [{
+            x: time.slice(0, frame + 1),
+            y: current,
+            mode: "lines",
+            line: { color: "#bb33ff" }
+          }], {
+            title: "Анимация переходных процессов",
+            xaxis: { title: "Время (с)" },
+            yaxis: { title: "Ток (мкА)" },
+            paper_bgcolor: "#0a0f1c",
+            plot_bgcolor: "#0a0f1c",
+            font: { color: "#00ff88" }
+          });
+          frame = (frame + 1) % time.length;
+          if (frame > 0) setTimeout(animate, 50);
+        };
+        animate();
+        log("Transient animation started");
+      } catch (e) {
+        log(`ERROR: Transient animation failed: ${e}`);
+      }
+    }
+
+    function showElectricFieldMap() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for electric field map");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const x = Array(10).fill(0).map((_, i) => i * 0.1);
+        const y = Array(10).fill(0).map((_, i) => i * 0.1);
+        const z = x.map(() => y.map(() => Math.random() * Math.max(...sim.voltages)));
+        Plotly.newPlot("heatmap", [{
+          x, y, z,
+          type: "heatmap",
+          colorscale: "Electric"
+        }], {
+          title: "Карта электрического поля",
+          xaxis: { title: "X (нм)" },
+          yaxis: { title: "Y (нм)" },
+          paper_bgcolor: "#0a0f1c",
+          font: { color: "#00ff88" }
+        });
+        log("Electric field map plotted");
+      } catch (e) {
+        log(`ERROR: Electric field map failed: ${e}`);
+      }
+    }
+
+    // Export Functions
+    function saveSimulation() {
+      try {
+        const sim = state.simulations[state.simulations.length - 1];
+        const blob = new Blob([JSON.stringify(sim)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `simulation_${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("Simulation saved");
+      } catch (e) {
+        log(`ERROR: Save simulation failed: ${e}`);
+      }
+    }
+
+    function toggleComparison() {
+      try {
+        const panel = document.getElementById("comparison");
+        panel.style.display = panel.style.display === "block" ? "none" : "block";
+        log(`Comparison panel toggled: ${panel.style.display}`);
+      } catch (e) {
+        log(`ERROR: Toggle comparison failed: ${e}`);
+      }
+    }
+
+    function toggleLogs() {
+      try {
+        const panel = document.getElementById("logs");
+        panel.style.display = panel.style.display === "block" ? "none" : "block";
+        log(`Logs panel toggled: ${panel.style.display}`);
+      } catch (e) {
+        log(`ERROR: Toggle logs failed: ${e}`);
+      }
+    }
+
+    function generateReport() {
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.setFont("helvetica");
+        doc.setTextColor(0, 255, 136);
+        doc.setFontSize(16);
+        doc.text("Aqua Transistor Studio Report", 20, 20);
+        doc.setFontSize(12);
+        doc.text(`Дата: ${new Date().toLocaleString()}`, 20, 30);
+        doc.text(`Компонентов: ${state.components.length}`, 20, 40);
+        doc.text(`Симуляций: ${state.simulations.length}`, 20, 50);
+        if (state.simulations.length) {
+          const sim = state.simulations[state.simulations.length - 1];
+          doc.text(`Макс. ток: ${Math.max(...sim.currents).toFixed(2)} мкА`, 20, 60);
+        }
+        doc.save(`report_${Date.now()}.pdf`);
+        log("Report generated");
+      } catch (e) {
+        log(`ERROR: Generate report failed: ${e}`);
+      }
+    }
+
+    function exportData() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for CSV export");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const csv = `Voltage,Current\n${sim.voltages.map((v, i) => `${v},${sim.currents[i]}`).join("\n")}`;
+        const blob = new Blob([csv], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `data_${Date.now()}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("CSV exported");
+      } catch (e) {
+        log(`ERROR: CSV export failed: ${e}`);
+      }
+    }
+
+    function exportGDSII() {
+      try {
+        const gds = state.components.map(c => `LAYER ${c.type} at (${c.x},${c.y}) size (${c.width},${c.height})`).join("\n");
+        const blob = new Blob([gds], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `layout_${Date.now()}.gds`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("GDSII exported");
+      } catch (e) {
+        log(`ERROR: GDSII export failed: ${e}`);
+      }
+    }
+
+    function exportPDF() {
+      try {
+        html2canvas(document.getElementById("canvas")).then(canvas => {
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF();
+          const imgData = canvas.toDataURL("image/png");
+          doc.addImage(imgData, "PNG", 10, 10, 190, 100);
+          doc.save(`canvas_${Date.now()}.pdf`);
+          log("PDF exported");
+        });
+      } catch (e) {
+        log(`ERROR: PDF export failed: ${e}`);
+      }
+    }
+
+    function exportJSON() {
+      try {
+        const data = { components: state.components, simulations: state.simulations };
+        const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `state_${Date.now()}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("JSON exported");
+      } catch (e) {
+        log(`ERROR: JSON export failed: ${e}`);
+      }
+    }
+
+    function exportSPICE() {
+      try {
+        const spice = state.components.map(c => `.MODEL ${c.type} ${c.material || ""} (x=${c.x}, y=${c.y})`).join("\n");
+        const blob = new Blob([spice], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `circuit_${Date.now()}.sp`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("SPICE exported");
+      } catch (e) {
+        log(`ERROR: SPICE export failed: ${e}`);
+      }
+    }
+
+    function exportSVG() {
+      try {
+        const svg = `<svg width="${canvas.width}" height="${canvas.height}" xmlns="http://www.w3.org/2000/svg">
+          ${state.components.map(c => `<rect x="${c.x}" y="${c.y}" width="${c.width}" height="${c.height}" fill="${c.color}" stroke="#00ff88"/>`).join("")}
+        </svg>`;
+        const blob = new Blob([svg], { type: "image/svg+xml" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `canvas_${Date.now()}.svg`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("SVG exported");
+      } catch (e) {
+        log(`ERROR: SVG export failed: ${e}`);
+      }
+    }
+
+    function exportMATLAB() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for MATLAB export");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const matlab = `voltages = [${sim.voltages.join(",")}]; currents = [${sim.currents.join(",")}]; plot(voltages, currents);`;
+        const blob = new Blob([matlab], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `data_${Date.now()}.m`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("MATLAB exported");
+      } catch (e) {
+        log(`ERROR: MATLAB export failed: ${e}`);
+      }
+    }
+
+    function exportHeatmap() {
+      try {
+        if (!state.simulations.length) {
+          document.getElementById("error").textContent = "Сначала выполните симуляцию!";
+          document.getElementById("error").classList.remove("hidden");
+          log("ERROR: No simulations for heatmap export");
+          return;
+        }
+        const sim = state.simulations[state.simulations.length - 1];
+        const x = sim.voltages;
+        const y = Array(10).fill(0).map((_, i) => i * 0.1);
+        const z = y.map(() => sim.currents.map(c => c * (Math.random() * 0.2 + 0.9)));
+        const data = `x,y,z\n${x.map((v, i) => y.map((_, j) => `${v},${j * 0.1},${z[j][i]}`).join("\n")).join("\n")}`;
+        const blob = new Blob([data], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `heatmap_${Date.now()}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("Heatmap exported");
+      } catch (e) {
+        log(`ERROR: Heatmap export failed: ${e}`);
+      }
+    }
+
+    function exportTopology() {
+      try {
+        const topology = state.components.map(c => `${c.type}: (${c.x}, ${c.y}), size (${c.width}, ${c.height})${c.material ? `, ${c.material}` : ""}`).join("\n");
+        const blob = new Blob([topology], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `topology_${Date.now()}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+        log("Topology exported");
+      } catch (e) {
+        log(`ERROR: Topology export failed: ${e}`);
+      }
+    }
+
+    // Examples
+    function loadExample() {
+      try {
+        const example = document.getElementById("example").value;
+        state.components = [];
+        state.connections = [];
+
+        if (example === "graphene") {
+          state.components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 100, height: 50, color: materialProperties["Graphene"].color, material: "Graphene", thickness: 0.7, dielectric: 4.0, bandgap: 0 },
+            { type: "Source", x: 20, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Drain", x: 140, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Gate", x: 50, y: 20, width: 100, height: 30, color: "#bb33ff" }
+          ];
+        } else if (example === "mos2") {
+          state.components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 100, height: 50, color: materialProperties["MoS2"].color, material: "MoS2", thickness: 0.65, dielectric: 4.5, bandgap: 1.8 },
+            { type: "Source", x: 20, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Drain", x: 140, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Gate", x: 50, y: 20, width: 100, height: 30, color: "#bb33ff" }
+          ];
+        } else if (example === "bn") {
+          state.components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 100, height: 50, color: materialProperties["BN"].color, material: "BN", thickness: 1.0, dielectric: 3.5, bandgap: 5.9 },
+            { type: "Source", x: 20, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Drain", x: 140, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Gate", x: 50, y: 20, width: 100, height: 30, color: "#bb33ff" }
+          ];
+        } else if (example === "wse2") {
+          state.components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 100, height: 50, color: materialProperties["WSe2"].color, material: "WSe2", thickness: 0.7, dielectric: 4.2, bandgap: 1.2 },
+            { type: "Source", x: 20, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Drain", x: 140, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Gate", x: 50, y: 20, width: 100, height: 30, color: "#bb33ff" }
+          ];
+        } else if (example === "silicene") {
+          state.components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 100, height: 50, color: materialProperties["Silicene"].color, material: "Silicene", thickness: 0.5, dielectric: 3.8, bandgap: 0.1 },
+            { type: "Source", x: 20, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Drain", x: 140, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Gate", x: 50, y: 20, width: 100, height: 30, color: "#bb33ff" }
+          ];
+        } else if (example === "mxene") {
+          state.components = [
+            { type: "2D-Layer", x: 50, y: 50, width: 100, height: 50, color: materialProperties["MXene"].color, material: "MXene", thickness: 0.8, dielectric: 4.6, bandgap: 0.2 },
+            { type: "Source", x: 20, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Drain", x: 140, y: 80, width: 40, height: 40, color: "#33ccff" },
+            { type: "Gate", x: 50, y: 20, width: 100, height: 30, color: "#bb33ff" }
+          ];
+        } else {
+          document.getElementById("error").textContent = "Пример не найден!";
+          document.getElementById("error").classList.remove("hidden");
+          log(`ERROR: Example not found: ${example}`);
+          return;
+        }
+
+        saveState();
+        drawCanvas();
+        log(`Example loaded: ${example}`);
+      } catch (e) {
+        document.getElementById("error").textContent = `Ошибка загрузки примера: ${e.message}`;
+        document.getElementById("error").classList.remove("hidden");
+        log(`ERROR: Load example failed: ${e}`);
+      }
+    }
+
+    // Settings
+    function applySettings() {
+      try {
+        state.gridSize = parseInt(document.getElementById("gridSize").value) || 10;
+        state.zoom = (parseInt(document.getElementById("zoom").value) || 100) / 100;
+        drawCanvas();
+        log(`Settings applied: gridSize=${state.gridSize}, zoom=${state.zoom}`);
+      } catch (e) {
+        log(`ERROR: Apply settings failed: ${e}`);
+      }
+    }
+
+    // Logs
+    function clearLogs() {
+      try {
+        state.logs = [];
+        document.getElementById("logOutput").innerHTML = "";
+        document.getElementById("logsOutput").innerHTML = "";
+        log("Logs cleared");
+      } catch (e) {
+        log(`ERROR: Clear logs failed: ${e}`);
+      }
+    }
+
+    // Clear Canvas
+    function clearCanvas() {
+      try {
+        state.components = [];
+        state.connections = [];
+        state.simulations = [];
+        saveState();
+        drawCanvas();
+        document.getElementById("output").innerHTML = "<p>Холст очищен!</p>";
+        document.getElementById("chart").innerHTML = "";
+        document.getElementById("heatmap").innerHTML = "";
+        log("Canvas cleared");
+      } catch (e) {
+        log(`ERROR: Clear canvas failed: ${e}`);
+      }
+    }
+  </script>
+</body>
+</html>
